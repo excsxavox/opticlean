@@ -1,0 +1,102 @@
+.warehouse-designer {
+  display: grid;
+  grid-template-columns: minmax(280px, 340px) minmax(0, 1fr);
+  grid-template-rows: auto auto;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+.warehouse-designer .designer-controls {
+  grid-row: 1 / span 2;
+}
+.warehouse-designer .designer-preview {
+  grid-column: 2;
+}
+.warehouse-designer .designer-schematic {
+  grid-column: 2;
+}
+.designer-sliders {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.designer-slider {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  grid-template-rows: auto auto;
+  gap: 6px 12px;
+  font-size: 10px;
+  color: #6f859b;
+}
+.designer-slider input[type='range'] {
+  grid-column: 1 / -1;
+  width: 100%;
+  accent-color: #087af0;
+}
+.designer-slider strong {
+  color: #163650;
+  font-size: 13px;
+}
+.designer-canvas {
+  height: 340px;
+  min-height: 280px;
+}
+.layout-schematic {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 12px;
+  max-height: 320px;
+  overflow: auto;
+}
+.layout-rack-card {
+  border: 1px solid #e2eaf3;
+  border-radius: 8px;
+  padding: 10px;
+  background: #fbfdff;
+}
+.layout-rack-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 8px;
+  font-size: 10px;
+}
+.layout-level-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.layout-level-label {
+  font-size: 8px;
+  font-weight: 600;
+  color: #8ba1b7;
+  width: 18px;
+}
+.layout-cells {
+  display: flex;
+  gap: 4px;
+  flex: 1;
+}
+.layout-cell {
+  flex: 1;
+  height: 14px;
+  border-radius: 3px;
+  background: linear-gradient(180deg, #bed8eb, #89b9dc);
+  border: 1px solid #a6c4da;
+  min-width: 12px;
+}
+.wh-identity-panel {
+  margin-bottom: 16px;
+}
+@media (max-width: 1000px) {
+  .warehouse-designer {
+    grid-template-columns: 1fr;
+  }
+  .warehouse-designer .designer-controls {
+    grid-row: auto;
+  }
+  .warehouse-designer .designer-preview,
+  .warehouse-designer .designer-schematic {
+    grid-column: 1;
+  }
+}
