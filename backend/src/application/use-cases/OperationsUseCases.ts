@@ -70,7 +70,13 @@ export class OperationsUseCases {
   async getMeta() {
     const s = await this.repo.load();
     const geo = getWarehouseGeometry(s);
-    return { categories, racks: geo.racks, locations: geo.locations, bundles: BUNDLES };
+    return {
+      categories,
+      racks: geo.racks,
+      locations: geo.locations,
+      layout: geo.layout,
+      bundles: BUNDLES,
+    };
   }
 
   async getState(): Promise<AppState> {

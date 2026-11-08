@@ -1,5 +1,5 @@
 import { getWarehouseGeometry } from './warehouse-layout.js';
-import type { AppState, Lot, Order, OrderLine, Product } from './types.js';
+import type { AppState, Lot, Order, OrderLine, OrderPick, Product } from './types.js';
 import { activeWarehouseId, lotsForActiveWarehouse } from './warehouse-admin.service.js';
 
 export const uid = (prefix: string) =>
@@ -103,7 +103,7 @@ export function receive(
     throw new Error('Selecciona un producto, una ubicación y una cantidad entera mayor a cero.');
   }
   if (qtyAt(s, data.loc) + qty > target.capacity) {
-    throw new Error('La cantidad supera la capacidad de esta ubicación (60 unidades).');
+    throw new Error(`La cantidad supera la capacidad de esta ubicación (${target.capacity} unidades).`);
   }
   if (
     lotsForActiveWarehouse(s).some((l) => l.loc === data.loc && l.productId !== data.productId)
@@ -272,7 +272,8 @@ export function dispatch(s: AppState, ids: string[], vehicle: string) {
   for (const o of orders) {
     o.status = 'En ruta';
     o.vehicle = vehicle;
-    for (const line of o.picks ?? o.lines) {
+    const lines: OrderPick[] = o.picks ?? o.lines;
+    for (const line of lines) {
       addEvent(
         s,
         'Despacho',
@@ -316,7 +317,8 @@ export function confirmDelivery(
   o.deliveredTo = person.trim();
   o.deliveryNotes = notes;
   o.deliveredAt = new Date().toISOString();
-  for (const line of o.picks ?? o.lines) {
+  const lines: OrderPick[] = o.picks ?? o.lines;
+  for (const line of lines) {
     addEvent(
       s,
       'Entrega',
@@ -343,7 +345,8 @@ export function registerIncident(
   }
   o.status = 'Incidencia';
   o.incident = reason + (notes ? ' · ' + notes : '');
-  for (const line of o.picks ?? o.lines) {
+  const lines: OrderPick[] = o.picks ?? o.lines;
+  for (const line of lines) {
     addEvent(s, 'Novedad', line.productId, line.qty, o.id, reason, o.id, line.batch ?? '');
   }
   return o;

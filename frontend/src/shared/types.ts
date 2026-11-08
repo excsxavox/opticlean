@@ -20,11 +20,17 @@ export type Lot = {
   warehouseId?: string;
 };
 
+export type LocationFace = 'D' | 'T';
+
+export type RackPosition = { rackId: string; column: number; row: number };
+
 export type WarehouseLayout = {
   rackCount: number;
   levels: number;
   positionsPerLevel: number;
   capacityPerCell: number;
+  depthFaces: 1 | 2;
+  rackPositions?: RackPosition[];
 };
 
 export type WarehouseSite = {
@@ -105,7 +111,7 @@ export type Settings = {
 };
 
 export type AppState = {
-  version: 1;
+  version: 1 | 2;
   products: Product[];
   lots: Lot[];
   warehouses: WarehouseSite[];
@@ -124,6 +130,7 @@ export type Location = {
   pos: number;
   capacity: number;
   category: string;
+  face?: LocationFace;
 };
 
 export type Rack = {
@@ -153,5 +160,6 @@ export type Meta = {
   categories: string[];
   racks: Rack[];
   locations: Location[];
+  layout: WarehouseLayout;
   bundles: Bundle[];
 };

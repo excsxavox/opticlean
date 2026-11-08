@@ -1,7 +1,9 @@
 import { locations } from './warehouse.js';
 import type { AppState } from './types.js';
 import { DEFAULT_WAREHOUSE_ID } from './warehouse-admin.service.js';
-import { DEFAULT_LAYOUT } from './warehouse-layout.js';
+import { DEFAULT_LAYOUT, toDelanteraLocId } from './warehouse-layout.js';
+
+const QUITO_LAYOUT = { ...DEFAULT_LAYOUT, depthFaces: 2 as const };
 
 export function seed(): AppState {
   const warehouses: AppState['warehouses'] = [
@@ -12,9 +14,9 @@ export function seed(): AppState {
       city: 'Quito',
       address: 'Av. Galo Plaza Lasso, Quito',
       status: 'Operativa',
-      racks: DEFAULT_LAYOUT.rackCount,
-      layout: { ...DEFAULT_LAYOUT },
-      notes: 'Layout 3D de demostración (72 posiciones).',
+      racks: QUITO_LAYOUT.rackCount,
+      layout: { ...QUITO_LAYOUT },
+      notes: 'Layout 3D con doble profundidad (144 posiciones).',
     },
     {
       id: 'WH-GYQ-01',
@@ -24,7 +26,7 @@ export function seed(): AppState {
       address: 'Vía a la Costa, Guayaquil',
       status: 'Operativa',
       racks: 4,
-      layout: { rackCount: 4, levels: 3, positionsPerLevel: 4, capacityPerCell: 60 },
+      layout: { rackCount: 4, levels: 3, positionsPerLevel: 4, capacityPerCell: 60, depthFaces: 1 },
       notes: 'Sin stock inicial · lista para recepciones.',
     },
     {
@@ -35,7 +37,7 @@ export function seed(): AppState {
       address: 'Parque industrial, Cuenca',
       status: 'Inactiva',
       racks: 2,
-      layout: { rackCount: 2, levels: 2, positionsPerLevel: 3, capacityPerCell: 50 },
+      layout: { rackCount: 2, levels: 2, positionsPerLevel: 3, capacityPerCell: 50, depthFaces: 1 },
       notes: 'En acondicionamiento.',
     },
   ];
@@ -74,7 +76,7 @@ export function seed(): AppState {
     lots.push({
       id: `lot-${i}`,
       productId: p.id,
-      loc: loc.id,
+      loc: toDelanteraLocId(loc.id),
       qty: 12 + ((i * 7) % 33),
       batch: `LT-26${String(i + 1).padStart(3, '0')}`,
       expiry: `2027-${String(2 + (i % 9)).padStart(2, '0')}-28`,
@@ -84,7 +86,7 @@ export function seed(): AppState {
   lots.push({
     id: 'lot-limpiavidrios',
     productId: 'P015',
-    loc: 'A-01-01',
+    loc: 'A-01-01-D',
     qty: 8,
     batch: 'LT-26018',
     expiry: '2027-02-18',
@@ -192,7 +194,7 @@ export function seed(): AppState {
       productId: 'P001',
       qty: 24,
       from: 'Química Andina',
-      to: 'A-02-01',
+      to: 'A-02-01-D',
       at: '2026-10-27T13:42:00Z',
       ref: 'REC-0083',
       by: 'Elena R.',
@@ -202,8 +204,8 @@ export function seed(): AppState {
       type: 'Traslado',
       productId: 'P008',
       qty: 12,
-      from: 'F-03-02',
-      to: 'F-01-01',
+      from: 'F-03-02-D',
+      to: 'F-01-01-D',
       at: '2026-10-27T13:18:00Z',
       ref: 'MOV-0032',
       by: 'Elena R.',
@@ -213,7 +215,7 @@ export function seed(): AppState {
       type: 'Despacho',
       productId: 'P005',
       qty: 4,
-      from: 'C-01-01',
+      from: 'C-01-01-D',
       to: 'PED-1045',
       at: '2026-10-27T12:50:00Z',
       ref: 'PED-1045',
@@ -222,7 +224,7 @@ export function seed(): AppState {
   ];
 
   return {
-    version: 1,
+    version: 2,
     products,
     lots,
     warehouses,
@@ -237,7 +239,7 @@ export function seed(): AppState {
         date: '2026-10-27',
         productId: 'P001',
         qty: 24,
-        loc: 'A-02-01',
+        loc: 'A-02-01-D',
         batch: 'LT-26025',
       },
     ],

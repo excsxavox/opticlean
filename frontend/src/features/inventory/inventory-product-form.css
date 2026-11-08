@@ -1,0 +1,82 @@
+.inv-product-backdrop .inv-product-modal {
+  width: 640px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.inv-product-modal .inv-product-header {
+  flex-shrink: 0;
+  gap: 13px;
+  padding: 22px 26px;
+}
+
+.inv-product-header .inv-product-symbol {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+  border-radius: 12px;
+  background: #edf5ff;
+  color: #1376dc;
+}
+
+.inv-product-header .inv-product-symbol .icon { width: 24px; height: 24px; }
+.inv-product-modal .inv-product-header h2 { font-size: 20px; }
+.inv-product-modal .inv-product-header p { font-size: 12px; line-height: 1.5; color: #687e93; }
+.inv-product-header > .icon-btn { margin-left: auto; flex-shrink: 0; }
+.inv-product-modal .inv-product-body { overflow-y: auto; padding: 22px 26px 26px; }
+
+.inv-product-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 0 0 24px;
+  padding: 12px 14px;
+  border: 1px solid #d9eafb;
+  border-radius: 9px;
+  background: #f4f9ff;
+  color: #386181;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.inv-product-notice .icon { width: 17px; height: 17px; margin-top: 2px; color: #2880cd; }
+.inv-product-fields { border: 0; margin: 0; padding: 0; min-width: 0; }
+.inv-product-section + .inv-product-section { margin-top: 24px; padding-top: 22px; border-top: 1px solid #e7edf4; }
+.inv-product-section h3 { display: flex; align-items: center; gap: 9px; margin: 0 0 17px; color: #173653; font-size: 13px; font-weight: 650; }
+.inv-product-section h3 > span { display: grid; place-items: center; width: 25px; height: 25px; background: #f1f5fa; border-radius: 7px; color: #68839c; font-size: 10px; font-weight: 600; }
+.inv-product-form .form-grid { gap: 16px 18px; }
+.inv-product-form .field { gap: 7px; min-width: 0; }
+.inv-product-form .field label { color: #466079; font-size: 12px; font-weight: 550; }
+.inv-product-form .field input, .inv-product-form .field select { min-height: 42px; padding: 10px 12px; font-size: 13px; border-radius: 8px; }
+.inv-product-form .field input[readonly] { background: #f3f6fa; color: #6c8195; }
+.inv-product-form .field small { color: #73879a; font-size: 11px; line-height: 1.5; }
+.inv-product-form .field [aria-invalid="true"] { border-color: #d95f66; background: #fffafa; }
+.inv-product-form .field [aria-invalid="true"]:focus { box-shadow: 0 0 0 3px #ffe9ea; }
+.inv-product-field-error { color: #b33443; font-size: 11px; line-height: 1.5; }
+.inv-product-save-error { display: flex; align-items: flex-start; gap: 9px; margin-top: 20px; padding: 12px 14px; background: #fff1f2; border: 1px solid #f3c7cc; border-radius: 8px; color: #a93040; font-size: 12px; line-height: 1.6; }
+.inv-product-save-error .icon { width: 17px; height: 17px; margin-top: 2px; }
+.inv-product-modal .inv-product-footer { align-items: center; justify-content: space-between; padding: 17px 26px; gap: 12px; flex-shrink: 0; }
+.inv-product-footer > span { font-size: 11px; color: #71869a; }
+.inv-product-footer > div { display: flex; gap: 8px; }
+.inv-product-footer .btn { min-height: 41px; font-size: 12px; white-space: nowrap; }
+
+@media (max-width: 620px) {
+  .inv-product-backdrop .inv-product-modal { max-height: calc(100dvh - 28px); }
+  .inv-product-modal .inv-product-header { padding: 18px; gap: 10px; }
+  .inv-product-modal .inv-product-header h2 { font-size: 18px; }
+  .inv-product-modal .inv-product-header p { font-size: 11px; }
+  .inv-product-header .inv-product-symbol { width: 36px; height: 36px; border-radius: 10px; }
+  .inv-product-modal .inv-product-body { padding: 18px; }
+  .inv-product-form .form-grid { gap: 15px; }
+  .inv-product-modal .inv-product-footer { align-items: stretch; flex-direction: column; padding: 14px 18px; gap: 10px; }
+  .inv-product-footer > div { justify-content: flex-end; }
+}
+
+@media (max-width: 420px) {
+  .inv-product-form .form-grid { grid-template-columns: 1fr; }
+  .inv-product-header .inv-product-symbol { display: none; }
+  .inv-product-footer > div .btn { flex: 1; justify-content: center; }
+}

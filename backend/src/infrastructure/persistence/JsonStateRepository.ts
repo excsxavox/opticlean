@@ -20,9 +20,11 @@ export class JsonStateRepository implements StateRepository {
     try {
       const raw = await readFile(STATE_FILE, 'utf8');
       const parsed = JSON.parse(raw) as AppState;
-      if (parsed?.version === 1) {
+      if (parsed?.version === 1 || parsed?.version === 2) {
         const migrated = migrateState(parsed);
-        await this.save(migrated);
+        if (migrated.version !== parsed.version || JSON.stringify(migrated) !== JSON.stringify(parsed)) {
+          await this.save(migrated);
+        }
         return migrated;
       }
     } catch {

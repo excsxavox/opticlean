@@ -1,24 +1,50 @@
-import type { AppState, Location, Rack, WarehouseLayout } from './types.js';
+import type { AppState, Location, LocationFace, Rack, WarehouseLayout } from './types.js';
 import { activeWarehouse } from './warehouse-admin.service.js';
 import { categories } from './warehouse.js';
+import { normalizeRackPositions } from './rack-positioning.js';
 
 export const DEFAULT_LAYOUT: WarehouseLayout = {
   rackCount: 6,
   levels: 3,
   positionsPerLevel: 4,
   capacityPerCell: 60,
+  depthFaces: 1,
 };
 
+export function layoutFaces(layout: WarehouseLayout): (LocationFace | undefined)[] {
+  return layout.depthFaces === 2 ? ['D', 'T'] : [undefined];
+}
+
+export function formatLocationId(rack: string, level: number, pos: number, face?: LocationFace) {
+  const base = `${rack}-${String(level).padStart(2, '0')}-${String(pos).padStart(2, '0')}`;
+  return face ? `${base}-${face}` : base;
+}
+
+const SINGLE_LOC_ID = /^[A-Z]-\d{2}-\d{2}$/;
+
+/** Convierte ubicación simple a cara delantera al activar doble profundidad. */
+export function toDelanteraLocId(loc: string): string {
+  if (loc.endsWith('-D') || loc.endsWith('-T')) return loc;
+  return SINGLE_LOC_ID.test(loc) ? `${loc}-D` : loc;
+}
+
+export function isSingleFaceLocId(loc: string): boolean {
+  return SINGLE_LOC_ID.test(loc);
+}
+
 function clamp(n: number, min: number, max: number) {
-  return Math.min(max, Math.max(min, Math.round(n)));
+  return Number.isFinite(n) ? Math.min(max, Math.max(min, Math.round(n))) : min;
 }
 
 export function normalizeLayout(input?: Partial<WarehouseLayout> & { racks?: number }): WarehouseLayout {
+  const rackCount = clamp(input?.rackCount ?? input?.racks ?? DEFAULT_LAYOUT.rackCount, 1, 12);
   return {
-    rackCount: clamp(input?.rackCount ?? input?.racks ?? DEFAULT_LAYOUT.rackCount, 1, 12),
+    rackCount,
     levels: clamp(input?.levels ?? DEFAULT_LAYOUT.levels, 1, 5),
     positionsPerLevel: clamp(input?.positionsPerLevel ?? DEFAULT_LAYOUT.positionsPerLevel, 1, 8),
     capacityPerCell: clamp(input?.capacityPerCell ?? DEFAULT_LAYOUT.capacityPerCell, 10, 200),
+    depthFaces: input?.depthFaces === 2 ? 2 : 1,
+    ...(input?.rackPositions !== undefined ? { rackPositions: normalizeRackPositions(rackCount, input.rackPositions) } : {}),
   };
 }
 
@@ -27,30 +53,33 @@ function rackLetter(index: number) {
 }
 
 export function buildWarehouseGeometry(layout: WarehouseLayout) {
-  const cols = 2;
+  const positions = normalizeRackPositions(layout.rackCount, layout.rackPositions);
   const categoryCycle = [...categories];
   const racks: Rack[] = [];
   for (let i = 0; i < layout.rackCount; i++) {
-    const col = i % cols;
-    const row = Math.floor(i / cols);
+    const { column, row } = positions[i];
     racks.push({
       id: rackLetter(i),
       name: `Rack ${rackLetter(i)}`,
       category: categoryCycle[i % categoryCycle.length],
-      x: col === 0 ? 1 : 6,
+      x: 1 + column * 5,
       y: 1 + row * 2.4,
     });
   }
+  const faces = layoutFaces(layout);
   const locations: Location[] = racks.flatMap((r) =>
     Array.from({ length: layout.levels }, (_, li) => li + 1).flatMap((level) =>
-      Array.from({ length: layout.positionsPerLevel }, (_, pi) => pi + 1).map((pos) => ({
-        id: `${r.id}-${String(level).padStart(2, '0')}-${String(pos).padStart(2, '0')}`,
-        rack: r.id,
-        level,
-        pos,
-        capacity: layout.capacityPerCell,
-        category: r.category,
-      })),
+      Array.from({ length: layout.positionsPerLevel }, (_, pi) => pi + 1).flatMap((pos) =>
+        faces.map((face) => ({
+          id: formatLocationId(r.id, level, pos, face),
+          rack: r.id,
+          level,
+          pos,
+          capacity: layout.capacityPerCell,
+          category: r.category,
+          ...(face ? { face } : {}),
+        })),
+      ),
     ),
   );
   return {

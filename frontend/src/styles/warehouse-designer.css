@@ -1,3 +1,43 @@
+.rack-picker-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  border-bottom: 1px solid #edf1f6;
+  background: #fbfdff;
+}
+.rack-picker-bar .subtle {
+  font-size: 10px;
+  font-weight: 600;
+  color: #7a94ad;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.rack-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.rack-picker button {
+  min-width: 36px;
+  padding: 6px 12px;
+  border-radius: 8px;
+  border: 1px solid #d4e2ee;
+  background: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  color: #5a7894;
+}
+.rack-picker button:hover {
+  border-color: #9ec5e8;
+  background: #f0f7fd;
+}
+.rack-picker button.active {
+  background: #087af0;
+  border-color: #087af0;
+  color: #fff;
+}
+
 .warehouse-designer {
   display: grid;
   grid-template-columns: minmax(280px, 340px) minmax(0, 1fr);
@@ -59,6 +99,57 @@
   align-items: baseline;
   margin-bottom: 8px;
   font-size: 10px;
+}
+.layout-level-block {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.layout-level-faces {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.layout-face-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.layout-face-tag {
+  font-size: 7px;
+  font-weight: 700;
+  color: #6a8aa8;
+  width: 22px;
+  text-transform: uppercase;
+}
+.designer-depth-toggle {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-top: 16px;
+  padding: 12px;
+  border-radius: 8px;
+  border: 1px solid #dce8f4;
+  background: #f4f9fd;
+  cursor: pointer;
+  font-size: 10px;
+  color: #5a7894;
+}
+.designer-depth-toggle input {
+  margin-top: 3px;
+  accent-color: #087af0;
+}
+.designer-depth-toggle strong {
+  display: block;
+  color: #163650;
+  font-size: 11px;
+  margin-bottom: 2px;
+}
+.designer-depth-toggle small {
+  color: #7a94ab;
+  line-height: 1.35;
 }
 .layout-level-row {
   display: flex;

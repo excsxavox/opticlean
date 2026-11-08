@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { seed } from '../src/domain/seed.js';
-import { locations } from '../src/domain/warehouse.js';
+import { getWarehouseGeometry } from '../src/domain/warehouse-layout.js';
 import {
   stock,
   available,
@@ -17,6 +17,7 @@ import {
 
 test('Every seeded location respects capacity and one-product storage', () => {
   const s = seed();
+  const { locations } = getWarehouseGeometry(s);
   for (const loc of locations) {
     assert.ok(qtyAt(s, loc.id) <= loc.capacity);
     assert.ok(new Set(s.lots.filter((l) => l.loc === loc.id).map((l) => l.productId)).size <= 1);
@@ -30,7 +31,7 @@ test('Receiving and transferring preserve product totals', () => {
   receive(s, {
     productId: 'P015',
     qty: 12,
-    loc: 'A-01-01',
+    loc: 'A-01-01-D',
     batch: 'TEST-001',
     expiry: '2099-12-31',
     supplier: 'Test',
