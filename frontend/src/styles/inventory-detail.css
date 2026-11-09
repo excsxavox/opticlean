@@ -84,6 +84,25 @@
 .inv-detail-values > div { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
 .inv-detail-values dt { color: #6e8195; }
 .inv-detail-values dd { margin: 0; font-weight: 600; color: #385675; font-variant-numeric: tabular-nums; }
+.inv-detail-kind { background: #eef2f6; color: #5a7188; border-radius: 999px; padding: 3px 8px; font-size: 11px; font-weight: 650; }
+.inv-detail-bom { margin: 0 20px 16px; padding: 12px; border: 1px solid #e4ecf4; border-radius: 10px; background: #f8fbfd; }
+.inv-detail-bom > header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+.inv-detail-bom > header strong { font-size: 12px; color: #355471; }
+.inv-detail-bom > header span { font-size: 11px; color: #6d8297; background: #e8eef5; border-radius: 999px; padding: 2px 7px; }
+.inv-detail-bom ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.inv-detail-bom li > button { width: 100%; display: flex; justify-content: space-between; gap: 10px; align-items: center; background: #fff; border: 1px solid #e5edf5; border-radius: 8px; padding: 9px 10px; text-align: left; color: inherit; }
+.inv-detail-bom li > button:hover { border-color: #b7d4ef; background: #f3f8fe; }
+.inv-detail-bom li strong { display: block; font-size: 12px; }
+.inv-detail-bom li small { display: block; margin-top: 2px; color: #6f8498; font-size: 10px; }
+.inv-detail-bom-meter { height: 3px; border-radius: 99px; background: #e7eef5; margin-top: 5px; overflow: hidden; }
+.inv-detail-bom-meter > span { display: block; height: 100%; background: #2f9d78; }
+.inv-detail-bom-meter > span.low { background: #d89a2e; }
+.inv-detail-bom-meter > span.critical { background: #d45b6a; }
+.inv-detail-parents { background: #fff; }
+.inv-detail .inv-pill { display: inline-flex; align-items: center; border-radius: 999px; padding: 2px 7px; font-size: 9px; font-style: normal; font-weight: 700; }
+.inv-detail .inv-pill-ok { background: #e7f7f0; color: #14795f; }
+.inv-detail .inv-pill-low { background: #fff1d8; color: #9a6510; }
+.inv-detail .inv-pill-critical { background: #ffe5ea; color: #b13d50; }
 .inv-detail-footer { display: grid; grid-template-columns: 1fr 1fr; border-top: 1px solid #e8eef4; padding: 8px 12px; gap: 8px; }
 .inv-detail-footer > button { display: flex; justify-content: center; align-items: center; gap: 7px; min-height: 40px; border: 0; border-radius: 7px; background: transparent; color: #4a6781; font-size: 12px; font-weight: 550; }
 .inv-detail-footer > button:hover { background: #eff5fb; color: #086fce; }

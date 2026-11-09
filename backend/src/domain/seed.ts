@@ -2,8 +2,63 @@ import { locations } from './warehouse.js';
 import type { AppState } from './types.js';
 import { DEFAULT_WAREHOUSE_ID } from './warehouse-admin.service.js';
 import { DEFAULT_LAYOUT, toDelanteraLocId } from './warehouse-layout.js';
+import { defaultFamilies } from './families.service.js';
 
 const QUITO_LAYOUT = { ...DEFAULT_LAYOUT, depthFaces: 2 as const };
+
+/** Pedidos entregados históricos para alimentar la previsión adaptativa. */
+function buildDemandHistory(): AppState['orders'] {
+  const catalog = [
+    ['P001', 10],
+    ['P015', 8],
+    ['P005', 6],
+    ['P018', 7],
+    ['P008', 12],
+    ['P052', 9],
+    ['P032', 5],
+    ['P045', 8],
+    ['P061', 4],
+    ['P025', 6],
+  ] as const;
+  const clients = ['CL001', 'CL002', 'CL003', 'CL004'] as const;
+  const orders: AppState['orders'] = [];
+  const anchor = new Date('2026-10-27T12:00:00Z');
+  for (let week = 1; week <= 8; week++) {
+    for (let i = 0; i < 3; i++) {
+      const idx = (week * 3 + i) % catalog.length;
+      const [productId, baseQty] = catalog[idx];
+      const d = new Date(anchor);
+      d.setUTCDate(d.getUTCDate() - week * 7 - i * 2);
+      const date = d.toISOString().slice(0, 10);
+      const id = `PED-H${week}${i}`;
+      orders.push({
+        id,
+        clientId: clients[(week + i) % clients.length],
+        status: 'Entregado',
+        date,
+        lines: [{ productId, qty: baseQty + ((week + i) % 4) }],
+        priority: 'Normal',
+        deliveredAt: `${date}T16:${String(10 + i * 7).padStart(2, '0')}:00Z`,
+        deliveredTo: 'Recepción cliente',
+      });
+    }
+  }
+  return orders;
+}
+
+function buildDispatchHistory(): AppState['events'] {
+  return buildDemandHistory().map((o, i) => ({
+    id: `ev-h-${i}`,
+    type: 'Despacho' as const,
+    productId: o.lines[0].productId,
+    qty: o.lines[0].qty,
+    from: 'PICK',
+    to: o.id,
+    at: o.deliveredAt ?? `${o.date}T16:00:00Z`,
+    ref: o.id,
+    by: 'Elena R.',
+  }));
+}
 
 export function seed(): AppState {
   const warehouses: AppState['warehouses'] = [
@@ -41,7 +96,8 @@ export function seed(): AppState {
       notes: 'En acondicionamiento.',
     },
   ];
-  const products = (
+  // Productos terminados + insumos (materia prima). Los insumos alimentan la reposición a tiempo.
+  const finished = (
     [
       ['P001', 'Limpiador multiusos 1 L', 'Hogar', 'Química Andina', 2.5, 30, 1.05, 1.2],
       ['P005', 'Desengrasante industrial 5 L', 'Industrial', 'Química Andina', 12.5, 24, 5.2, 6],
@@ -66,12 +122,58 @@ export function seed(): AppState {
     min,
     weight,
     volume,
+    kind: 'finished' as const,
+    fragile: category === 'Hospitalaria',
+    components: [] as { productId: string; qty: number }[],
   }));
 
+  const rawMaterials = (
+    [
+      ['MP-BASE', 'Base concentrada limpieza', 'Insumos', 'Química Andina', 1.2, 80, 1, 1],
+      ['MP-FRAG', 'Fragancia cítrica', 'Insumos', 'Aromas del Valle', 0.8, 40, 0.2, 0.3],
+      ['MP-CLORO', 'Hipoclorito concentrado', 'Insumos', 'Química Andina', 0.9, 60, 1.1, 1],
+      ['MP-TENSIO', 'Tensioactivo industrial', 'Insumos', 'Limpieza Total', 1.5, 35, 0.8, 0.9],
+      ['MP-GEL', 'Gel carbómero', 'Insumos', 'Higiene Pro', 1.1, 30, 0.5, 0.6],
+      ['MP-NITRILO', 'Lámina nitrilo (insumo)', 'Insumos', 'Higiene Pro', 0.6, 50, 0.1, 0.2],
+    ] as const
+  ).map(([id, name, category, supplier, price, min, weight, volume]) => ({
+    id,
+    sku: id,
+    name,
+    category,
+    supplier,
+    price,
+    min,
+    weight,
+    volume,
+    kind: 'raw' as const,
+    fragile: true,
+    components: [] as { productId: string; qty: number }[],
+  }));
+
+  const bom: Record<string, { productId: string; qty: number }[]> = {
+    P001: [{ productId: 'MP-BASE', qty: 1 }, { productId: 'MP-FRAG', qty: 1 }],
+    P015: [{ productId: 'MP-BASE', qty: 2 }, { productId: 'MP-FRAG', qty: 1 }],
+    P032: [{ productId: 'MP-BASE', qty: 2 }, { productId: 'MP-TENSIO', qty: 1 }],
+    P005: [{ productId: 'MP-TENSIO', qty: 2 }, { productId: 'MP-BASE', qty: 1 }],
+    P018: [{ productId: 'MP-CLORO', qty: 3 }],
+    P008: [{ productId: 'MP-CLORO', qty: 1 }, { productId: 'MP-GEL', qty: 1 }],
+    P045: [{ productId: 'MP-GEL', qty: 1 }, { productId: 'MP-FRAG', qty: 1 }],
+    P052: [{ productId: 'MP-NITRILO', qty: 2 }],
+    P061: [{ productId: 'MP-TENSIO', qty: 2 }, { productId: 'MP-BASE', qty: 1 }],
+  };
+
+  const products = [
+    ...finished.map((p) => ({ ...p, components: bom[p.id] ?? [] })),
+    ...rawMaterials,
+  ];
+
   const lots: AppState['lots'] = [];
+  const finishedOnly = products.filter((p) => p.kind !== 'raw');
   for (const [i, loc] of locations.entries()) {
     if (i % 4 === 3 || i % 11 === 0) continue;
-    const options = products.filter((p) => p.category === loc.category && p.id !== 'P015');
+    const options = finishedOnly.filter((p) => p.category === loc.category && p.id !== 'P015');
+    if (!options.length) continue;
     const p = options[(i + Math.floor(i / 4)) % options.length];
     lots.push({
       id: `lot-${i}`,
@@ -91,6 +193,27 @@ export function seed(): AppState {
     batch: 'LT-26018',
     expiry: '2027-02-18',
     warehouseId: DEFAULT_WAREHOUSE_ID,
+  });
+
+  // Stock bajo a propósito en algunos insumos para demostrar alertas padre→hijo
+  const rawStock: Array<[string, number, string]> = [
+    ['MP-BASE', 18, 'F-01-01-D'],
+    ['MP-FRAG', 9, 'F-01-02-D'],
+    ['MP-CLORO', 22, 'F-01-03-D'],
+    ['MP-TENSIO', 12, 'F-02-01-D'],
+    ['MP-GEL', 8, 'F-02-02-D'],
+    ['MP-NITRILO', 15, 'F-02-03-D'],
+  ];
+  rawStock.forEach(([productId, qty, loc], i) => {
+    lots.push({
+      id: `lot-raw-${i}`,
+      productId,
+      loc,
+      qty,
+      batch: `MP-26${String(i + 1).padStart(2, '0')}`,
+      expiry: '2027-12-31',
+      warehouseId: DEFAULT_WAREHOUSE_ID,
+    });
   });
 
   const clients: AppState['clients'] = [
@@ -184,7 +307,11 @@ export function seed(): AppState {
         { productId: 'P025', qty: 6 },
       ],
       priority: 'Normal',
+      deliveredAt: '2026-10-26T18:10:00Z',
+      deliveredTo: 'María Torres',
     },
+    // Historial para que el modelo de previsión aprenda demanda real
+    ...buildDemandHistory(),
   ];
 
   const events: AppState['events'] = [
@@ -221,6 +348,7 @@ export function seed(): AppState {
       ref: 'PED-1045',
       by: 'Elena R.',
     },
+    ...buildDispatchHistory(),
   ];
 
   return {
@@ -232,6 +360,7 @@ export function seed(): AppState {
     orders,
     events,
     purchases: [],
+    families: defaultFamilies(),
     receipts: [
       {
         id: 'REC-0083',

@@ -1,6 +1,7 @@
-import { getWarehouseGeometry } from './warehouse-layout.js';
 import type { AppState, Lot, Order, OrderLine, OrderPick, Product } from './types.js';
 import { activeWarehouseId, lotsForActiveWarehouse } from './warehouse-admin.service.js';
+import { getWarehouseGeometry } from './warehouse-layout.js';
+import { normalizeProductBom, validateComponents } from './bom.service.js';
 
 export const uid = (prefix: string) =>
   `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
@@ -57,30 +58,6 @@ export function addEvent(
     at: new Date().toISOString(),
     by: s.settings.operator,
   });
-}
-
-export function suggest(s: AppState, productId: string, qty = 1, exclude = '') {
-  const p = product(s, productId);
-  if (!p) return [];
-  return getWarehouseGeometry(s)
-    .locations.filter(
-      (l) =>
-        l.id !== exclude &&
-        qtyAt(s, l.id) + qty <= l.capacity &&
-        lotsForActiveWarehouse(s)
-          .filter((t) => t.loc === l.id)
-          .every((t) => t.productId === productId),
-    )
-    .sort((a, b) => {
-      const score = (l: typeof a) =>
-        (l.category === p.category ? 100 : 0) +
-        (lotsForActiveWarehouse(s).some((t) => t.loc === l.id && t.productId === productId)
-          ? 40
-          : 0) +
-        (4 - l.level) * 3 +
-        (l.rack < 'D' ? 2 : 0);
-      return score(b) - score(a);
-    });
 }
 
 const todayGuayaquil = () =>
@@ -289,17 +266,23 @@ export function dispatch(s: AppState, ids: string[], vehicle: string) {
 }
 
 export function upsertProduct(s: AppState, p: Product, originalId?: string) {
+  const normalized = normalizeProductBom({
+    ...p,
+    components: p.components ?? [],
+    kind: p.kind === 'raw' ? 'raw' : p.kind ?? 'finished',
+  });
+  validateComponents(s, normalized.id, normalized.components);
   if (originalId) {
     const existing = product(s, originalId);
     if (!existing) throw new Error('Producto no encontrado.');
-    Object.assign(existing, p);
+    Object.assign(existing, normalized);
     return existing;
   }
   if (s.products.some((x) => x.id === p.id)) {
     throw new Error('Ya existe un producto con este código.');
   }
-  s.products.push(p);
-  return p;
+  s.products.push(normalized);
+  return normalized;
 }
 
 export function confirmDelivery(

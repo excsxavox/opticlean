@@ -1,4 +1,5 @@
 import { seed } from './seed.js';
+import { ensureFamilies } from './families.service.js';
 import type { AppState } from './types.js';
 import { DEFAULT_WAREHOUSE_ID, syncSettingsWarehouseLabel } from './warehouse-admin.service.js';
 import {
@@ -61,6 +62,39 @@ export function migrateState(raw: AppState): AppState {
   if (base.version === 1) {
     applyQuitoDualDepth(base);
     base.version = 2;
+  }
+
+  // Estructura padre→hijo (BOM): normaliza kind/components; si falta, aporta insumos demo
+  for (const p of base.products) {
+    p.components = Array.isArray(p.components) ? p.components : [];
+    p.kind = p.kind === 'raw' ? 'raw' : 'finished';
+  }
+  if (!base.products.some((p) => p.kind === 'raw')) {
+    const demo = seed();
+    const raws = demo.products.filter((p) => p.kind === 'raw');
+    const rawLots = demo.lots.filter((l) => raws.some((r) => r.id === l.productId));
+    base.products.push(...raws);
+    base.lots.push(...rawLots);
+    for (const demoP of demo.products) {
+      const local = base.products.find((p) => p.id === demoP.id);
+      if (local && demoP.components?.length) local.components = [...demoP.components];
+    }
+  }
+
+  // Historial de demanda para previsión adaptativa (solo si aún no está)
+  if (!base.orders.some((o) => o.id.startsWith('PED-H'))) {
+    const demo = seed();
+    const historyOrders = demo.orders.filter((o) => o.id.startsWith('PED-H'));
+    const historyEvents = demo.events.filter((e) => e.id.startsWith('ev-h-'));
+    base.orders.push(...historyOrders);
+    base.events.push(...historyEvents);
+  }
+
+  ensureFamilies(base);
+  for (const p of base.products) {
+    if (p.fragile === undefined) {
+      p.fragile = p.category === 'Hospitalaria' || p.kind === 'raw';
+    }
   }
 
   syncSettingsWarehouseLabel(base);

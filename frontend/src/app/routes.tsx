@@ -14,6 +14,7 @@ import { TraceabilityPage } from '../features/traceability/TraceabilityPage';
 import { ReportsPage } from '../features/reports/ReportsPage';
 import { SettingsPage } from '../features/settings/SettingsPage';
 import { WarehousesAdminPage } from '../features/warehouses/WarehousesAdminPage';
+import { FamiliesPage } from '../features/families/FamiliesPage';
 
 function LoadingShell() {
   return (
@@ -47,6 +48,7 @@ export function AppRoutes() {
         <Route path="recepcion" element={<ReceptionPage />} />
         <Route path="bodega" element={<WarehousePage />} />
         <Route path="bodegas" element={<WarehousesAdminPage />} />
+        <Route path="familias" element={<FamiliesPage />} />
         <Route path="pedidos" element={<OrdersPage />} />
         <Route path="pedidos/nuevo" element={<NewOrderPage />} />
         <Route path="compras" element={<PurchasesPage />} />

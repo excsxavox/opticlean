@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#062344">
+  <meta name="description" content="OPTICLEAN AI · Bodega visual (embed)">
+  <title>OPTICLEAN AI · Bodega visual</title>
+  <base href="/control-embed/">
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <link rel="stylesheet" href="styles.css">
+  <style>
+    /* Modo embed: se muestra dentro de opticlean (React) sin doble sidebar */
+    html.embed-mode .sidebar,
+    html.embed-mode .topbar,
+    html.embed-mode .mobile-overlay,
+    html.embed-mode .mobile-menu,
+    html.embed-mode .demo-tag { display: none !important; }
+    html.embed-mode .app-shell {
+      display: block !important;
+      grid-template-columns: none !important;
+      min-height: 100vh;
+    }
+    html.embed-mode .page {
+      padding: 18px 20px 28px !important;
+      max-width: none;
+    }
+    html.embed-mode body {
+      background: #f4f7fb;
+      margin: 0;
+    }
+    html.embed-mode #toast {
+      left: 50% !important;
+    }
+  </style>
+  <script>
+    (function () {
+      var params = new URLSearchParams(location.search);
+      if (params.get('embed') === '1') {
+        document.documentElement.classList.add('embed-mode');
+        if (!location.hash || location.hash === '#') location.hash = '#bodega';
+      }
+    })();
+  </script>
+</head>
+<body>
+  <div id="app"></div>
+  <div id="modal-root"></div>
+  <div id="toast" role="status" aria-live="polite"></div>
+  <script type="module" src="app.mjs"></script>
+</body>
+</html>

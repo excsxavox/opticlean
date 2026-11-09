@@ -1,0 +1,79 @@
+/* Portado/adaptado desde opticlean-control */
+/* Bodega visual: capas, ruta de navegación, riel de plantas, posición en rack */
+.chips{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.chip-label{font-size:10px;color:#566a80;font-weight:500;margin-right:2px}
+.chip{border:1px solid #d5dfea;background:#fff;color:#16304c;font-size:10.5px;padding:6px 11px;border-radius:999px;min-height:32px}
+.chip.active{border-color:#1795f5;background:#eaf3fd;color:#0a4f9e;font-weight:600}
+.map-nav{padding:10px 16px 0;display:flex;flex-direction:column;gap:8px}
+.crumbs{display:flex;flex-wrap:wrap;align-items:center;gap:7px;font-size:11px;color:#566a80}
+.crumbs i{font-style:normal;color:#8a9bb0}.crumbs b{color:#16304c;font-weight:600}.crumbs b.cur{color:#0a62c2}
+.pills{display:flex;flex-wrap:wrap;gap:7px;align-items:center}
+.pills small{font-size:10px;color:#566a80;margin-left:4px}
+.pill{border:1px solid #d5dfea;background:#fff;color:#16304c;font-size:11px;padding:7px 13px;border-radius:999px;min-height:34px;display:inline-flex;align-items:center;gap:7px}
+.pill i{width:9px;height:9px;border-radius:2px;display:inline-block}
+.pill.active{border-color:#1795f5;background:#eaf3fd;color:#0a4f9e;font-weight:600}
+.floor-rail{position:absolute;left:14px;top:40px;z-index:4;width:156px;display:flex;flex-direction:column;gap:7px}
+.rail-title{font-size:9.5px;font-weight:700;letter-spacing:1.2px;color:#566a80}
+.floor-btn{display:flex;align-items:center;gap:9px;border:1px solid #e1e8f0;background:#ffffffe8;border-radius:9px;padding:7px 9px;text-align:left;min-height:44px}
+.floor-btn.active{border-color:#1795f5;background:#f1f7fe}
+.floor-btn b{display:block;font-size:11px;color:#16304c}.floor-btn small{display:block;font-size:9.5px;color:#566a80}
+.floor-slab{width:30px;height:9px;border-radius:3px 3px 2px 2px;background:#e1e8f0;box-shadow:0 4px 0 #b9cde0;flex-shrink:0;margin-bottom:4px}
+.floor-btn.active .floor-slab{background:#1795f5;box-shadow:0 4px 0 #064a8f}
+.rail-note{font-size:9.5px;color:#566a80;line-height:1.4;border-top:1px dashed #d5dfea;padding-top:7px}
+@media(max-width:1100px){.floor-rail{position:static;width:auto;flex-direction:row;flex-wrap:wrap;padding:10px 16px 0}.rail-title,.rail-note{display:none}}
+.rack-mini{margin:14px 0 4px}.rm-title{font-size:10.5px;font-weight:600;margin-bottom:7px}
+.rm-row{display:flex;align-items:center;gap:8px;margin-bottom:4px}.rm-row>span{width:50px;font-size:9.5px;color:#566a80}
+.rm-row>div{display:grid;gap:4px;flex:1}
+.rm-cell{height:26px;border-radius:5px;border:1px dashed #c9d6e3;background:#f6f9fc;color:#566a80;font-size:9.5px;font-weight:600;padding:0}
+.rm-cell.occ{background:#d3e6f3;border:1px solid #b7d3e8;color:#1d4466}
+.rm-cell.sel{background:#1795f5;border:1px solid #1795f5;color:#fff}
+
+/* Diseñador: barra de herramientas, corte lateral, revisión */
+.d-stage{display:flex;align-items:stretch}
+.d-rail{flex:0 0 68px;display:flex;flex-direction:column;gap:6px;padding:10px 8px;border-right:1px solid #edf1f6;background:#fbfcfe}
+.d-tool{display:flex;flex-direction:column;align-items:center;gap:3px;border:0;background:transparent;border-radius:10px;padding:8px 2px;min-height:52px;color:#3d526a;font-size:9.5px;font-weight:600}
+.d-tool:hover{background:#f1f5fa}.d-tool.active{background:#eaf3fd;color:#0a4f9e}
+.d-ico{width:21px;height:21px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.d-stage .designer-canvas{flex:1 1 0;min-width:0}
+@media(max-width:900px){.d-stage{flex-direction:column
+
+.map-section{cursor:pointer;transition:filter .12s;outline:none}
+.map-section:hover{filter:brightness(.94)}
+.map-section:focus-visible{filter:drop-shadow(0 0 3px #1795f5)}
+.map-cell{cursor:pointer}
+.location-code{font-size:23px;letter-spacing:-.6px;font-weight:650;margin:11px 0 4px}
+.location-sub{font-size:10px;color:#8b9bb0}
+.mini-overline{font-size:8px;font-weight:600;letter-spacing:1.1px;text-transform:uppercase;color:#8ba1b7}
+.location-product{display:flex;gap:10px;align-items:center;margin:20px 0 14px}
+.product-icon{width:38px;height:38px;border-radius:10px;background:#eaf3fd;display:grid;place-items:center;color:#1795f5}
+.product-code{font-size:9px;color:#728ba2}
+.product-title{font-size:12px;font-weight:600}
+.detail-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px 11px;margin:15px 0 19px}
+.detail-grid dt{font-size:9px;color:#8d9eb0;margin-bottom:5px}
+.detail-grid dd{margin:0;font-size:11px;font-weight:550}
+.capacity-wrap{margin:8px 0 4px}
+.capacity-wrap .progress{height:8px;border-radius:99px;background:#e8eef5;overflow:hidden}
+.capacity-wrap .progress>span{display:block;height:100%;background:linear-gradient(90deg,#49b597,#1795f5)}
+.button-row{display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+.location-panel .button-row{margin-top:19px}
+.location-panel .button-row .btn{flex:1}
+.empty-location{padding:19px 0;text-align:center;font-size:10px;color:#8da4b8;line-height:1.8}
+.warehouse-bottom{display:grid;grid-template-columns:minmax(0,1fr) 285px;gap:17px;margin-top:17px}
+.swatch{width:7px;height:7px;border-radius:2px;background:#c9d8e8;display:inline-block;margin-right:4px;vertical-align:middle}
+.swatch.blue{background:#209cff}.swatch.green{background:#49b597}.swatch.empty{background:#edf1f5;border:1px solid #c6d4e2}.swatch.amber{background:#e7aa54}
+.pick-item{display:flex;align-items:center;gap:9px;padding:12px 15px;border-bottom:1px solid #eaf1f7;cursor:pointer}
+.pick-item:hover{background:#f4faff}.pick-item.checked{background:#f2faf6}
+.pick-number{width:24px;height:24px;border:1px solid #d5e7f5;border-radius:50%;display:grid;place-items:center;color:#4194d3;font-size:9px}
+.pick-intro{padding:12px 15px;font-size:11px;color:#566a80;line-height:1.55;border-bottom:1px solid #eaf1f7}
+.rack-list{display:flex;flex-direction:column}
+.rack-row{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-top:1px solid #edf2f7;font-size:11px}
+.rack-label{font-weight:600}
+.suggestion{background:#eef6ff;border:1px solid #c5ddf8;border-radius:12px;padding:12px 14px;font-size:12px;line-height:1.5}
+.pill{border:1px solid #d5dfea;background:#fff;border-radius:999px;padding:6px 12px;font-size:10.5px;display:inline-flex;align-items:center;gap:6px;cursor:pointer;color:#16304c}
+.pill.active{border-color:#1795f5;background:#eaf3fd;color:#0a4f9e;font-weight:600}
+.pill .dot{width:8px;height:8px;border-radius:2px;display:inline-block}
+.floor-btn{border:1px solid #d5dfea;background:#fff;border-radius:10px;padding:8px 10px;text-align:left;cursor:pointer;font-size:11px}
+.floor-btn.active{border-color:#1795f5;background:#eaf3fd}
+.floor-slab{height:6px;border-radius:3px;background:#d5e4f2;margin-top:6px}
+.rail-title{font-size:10px;font-weight:600}
+.rail-note{font-size:9px;color:#7a90a6}

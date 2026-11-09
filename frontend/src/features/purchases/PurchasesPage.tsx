@@ -1,22 +1,36 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAppState } from '../../shared/hooks/AppStateProvider';
 import { api } from '../../shared/api/client';
 import { available, product } from '../../shared/lib/inventory';
+import { isRaw } from '../../shared/lib/bom';
+import { buildForecast, suggestedPurchaseQty, type ConfidenceLevel } from '../../shared/lib/forecast';
 import { Badge, Btn, Empty, Kpi, PageHead, ProductCell } from '../../shared/components/ui';
 import { Modal, ModalActions } from '../../shared/components/Modal';
-import { dateShort } from '../../shared/lib/inventory';
+import { dateShort, num } from '../../shared/lib/inventory';
+import { Icon } from '../../shared/components/Icon';
+import '../../styles/forecast.css';
+
+const confidenceLabel: Record<ConfidenceLevel, string> = {
+  low: 'Aprendiendo',
+  medium: 'Media',
+  high: 'Alta',
+};
 
 export function PurchasesPage() {
   const { state, applyResponse, toast } = useAppState();
   const navigate = useNavigate();
   const [modalOpen, setModalOpen] = useState(false);
   const [prefillProduct, setPrefillProduct] = useState('');
+  const [prefillQty, setPrefillQty] = useState(12);
   const [error, setError] = useState('');
 
-  if (!state) return null;
+  const forecast = useMemo(() => (state ? buildForecast(state) : null), [state]);
 
-  const low = state.products.filter((p) => available(state, p.id) < p.min);
+  if (!state || !forecast) return null;
+
+  const urgent = forecast.recommendations.filter((r) => r.urgency === 'now' || r.productionRisk);
+  const soon = forecast.recommendations.filter((r) => r.urgency === 'soon' && !r.productionRisk);
 
   const submit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -31,15 +45,17 @@ export function PurchasesPage() {
           notes: data.notes,
         }),
       );
-      toast('Solicitud registrada.');
+      toast('Solicitud registrada. El modelo seguirá aprendiendo con la operación.');
       setModalOpen(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error');
     }
   };
 
-  const openNew = (productId?: string) => {
-    setPrefillProduct(productId ?? state.products[0]?.id ?? '');
+  const openNew = (productId?: string, qty?: number) => {
+    const id = productId ?? state.products[0]?.id ?? '';
+    setPrefillProduct(id);
+    setPrefillQty(qty ?? (id ? suggestedPurchaseQty(state, id) : 12));
     setModalOpen(true);
     setError('');
   };
@@ -47,37 +63,94 @@ export function PurchasesPage() {
   return (
     <>
       <PageHead
-        eyebrow="Abastecimiento"
+        eyebrow="Abastecimiento inteligente"
         title="Órdenes de compra"
-        desc="Anticipa faltantes y registra solicitudes de reposición."
+        desc="La previsión mejora con cada pedido y despacho para anticipar faltantes y proteger la producción."
         actions={
           <Btn variant="primary" icon="plus" onClick={() => openNew()}>
             Nueva solicitud
           </Btn>
         }
       />
+
       <div className="kpis">
-        <Kpi label="Bajo mínimo" value={low.length} unit="SKU" foot="Según disponibilidad" icon="alert" />
-        <Kpi label="Solicitudes" value={state.purchases.length} unit="" foot="Pendientes de recepción" icon="orders" />
+        <Kpi label="Urgente ahora" value={urgent.length} unit="SKU" foot="Quiebre o riesgo de producción" icon="alert" />
+        <Kpi label="Pronóstico pronto" value={soon.length} unit="SKU" foot={`Lead time ${forecast.leadDays} días`} icon="calendar" />
+        <Kpi label="Riesgo producción" value={forecast.productionRisks.length} unit="" foot="BOM / materia prima" icon="layers" />
+        <Kpi
+          label="Aprendizaje del modelo"
+          value={`${forecast.learningScore}%`}
+          unit=""
+          foot="Sube con más historial estable"
+          icon="spark"
+        />
       </div>
-      <section className="panel">
-        <div className="panel-head">
-          <span className="panel-title">Reposición sugerida</span>
-          <Badge text="Revisión" color="amber" />
+
+      <section className="fc-banner" aria-label="Insight de previsión">
+        <Icon name="spark" />
+        <div>
+          <strong>Previsión adaptativa</strong>
+          <p>{forecast.insight}</p>
         </div>
-        {low.length ? (
+        <Btn icon="chart" onClick={() => navigate('/reportes')}>Ver reportes</Btn>
+      </section>
+
+      <section className="panel fc-panel">
+        <div className="panel-head">
+          <span className="panel-title">Recomendaciones de abastecimiento</span>
+          <Badge text={`${forecast.recommendations.length} activas`} color="blue" />
+        </div>
+        {forecast.recommendations.length ? (
           <div className="table-scroll">
-            <table>
+            <table className="fc-table">
+              <thead>
+                <tr>
+                  <th>Prioridad</th>
+                  <th>Ítem</th>
+                  <th>Cobertura</th>
+                  <th>Sugerido</th>
+                  <th>Confianza</th>
+                  <th>Motivo</th>
+                  <th />
+                </tr>
+              </thead>
               <tbody>
-                {low.map((p) => (
-                  <tr key={p.id}>
+                {forecast.recommendations.slice(0, 16).map((row) => (
+                  <tr key={row.productId} className={row.productionRisk ? 'fc-row-risk' : row.urgency === 'now' ? 'fc-row-now' : ''}>
                     <td>
-                      <ProductCell name={p.name} id={p.id} category={p.category} />
+                      <span className={`fc-urgency fc-urgency-${row.productionRisk ? 'risk' : row.urgency}`}>
+                        {row.productionRisk ? 'Producción' : row.urgency === 'now' ? 'Ahora' : row.urgency === 'soon' ? 'Pronto' : 'Vigilancia'}
+                      </span>
                     </td>
-                    <td>{available(state, p.id)} u.</td>
-                    <td>{p.min} u.</td>
                     <td>
-                      <Btn variant="small" icon="plus" onClick={() => openNew(p.id)}>
+                      <ProductCell
+                        name={row.name}
+                        id={row.productId}
+                        category={`${row.kind === 'raw' ? 'Insumo' : 'Producto'} · ${row.category}`}
+                      />
+                      {row.blocksParents > 0 && (
+                        <small className="fc-parents">Bloquea {row.blocksParents}: {row.parentNames.slice(0, 2).join(', ')}{row.parentNames.length > 2 ? '…' : ''}</small>
+                      )}
+                    </td>
+                    <td>
+                      <strong>{row.daysCover === null ? '—' : `${row.daysCover}d`}</strong>
+                      <small className="sub">{num(row.available)} disp. · mín. {num(row.min)}</small>
+                      <div className="fc-learn" title={`Aprendizaje ${(row.learningWeight * 100).toFixed(0)}%`}>
+                        <span style={{ width: `${Math.max(8, row.learningWeight * 100)}%` }} />
+                      </div>
+                    </td>
+                    <td>
+                      <strong>{num(row.suggestedQty)}</strong>
+                      <small className="sub">~{row.dailyDemand.toFixed(1)} uds/día</small>
+                    </td>
+                    <td>
+                      <span className={`fc-conf fc-conf-${row.confidence}`}>
+                        {confidenceLabel[row.confidence]} · {row.confidenceScore}%
+                      </span>
+                    </td>
+                    <td className="fc-reason">{row.reason}</td>
+                    <td>
+                      <Btn variant="small" icon="plus" onClick={() => openNew(row.productId, row.suggestedQty || undefined)}>
                         Solicitar
                       </Btn>
                     </td>
@@ -87,9 +160,10 @@ export function PurchasesPage() {
             </table>
           </div>
         ) : (
-          <Empty title="Inventario OK" desc="Todos los productos cumplen el mínimo." />
+          <Empty title="Sin recomendaciones" desc="El inventario cubre el horizonte. El modelo sigue aprendiendo en segundo plano." />
         )}
       </section>
+
       <section className="panel" style={{ marginTop: 18 }}>
         <div className="panel-head">
           <span className="panel-title">Solicitudes de compra</span>
@@ -121,34 +195,43 @@ export function PurchasesPage() {
             </table>
           </div>
         ) : (
-          <Empty title="Sin solicitudes" desc="Crea la primera solicitud interna." />
+          <Empty title="Sin solicitudes" desc="Crea la primera desde una recomendación del modelo." />
         )}
       </section>
 
       {modalOpen ? (
         <Modal
           title="Nueva solicitud de compra"
-          subtitle="Registro interno; no se envía al proveedor."
+          subtitle="Cantidad prellenada por la previsión adaptativa (puedes ajustarla)."
           onClose={() => setModalOpen(false)}
           footer={
             <ModalActions onCancel={() => setModalOpen(false)} submitLabel="Registrar" formId="purchase-form" icon="save" />
           }
         >
-          <form id="purchase-form" onSubmit={submit}>
+          <form id="purchase-form" onSubmit={submit} key={`${prefillProduct}-${prefillQty}`}>
             <div className="form-grid">
               <div className="field full">
-                <label htmlFor="pur-product">Producto</label>
-                <select id="pur-product" name="productId" defaultValue={prefillProduct}>
+                <label htmlFor="pur-product">Producto / Insumo</label>
+                <select
+                  id="pur-product"
+                  name="productId"
+                  defaultValue={prefillProduct}
+                  onChange={(e) => {
+                    const id = e.target.value;
+                    setPrefillProduct(id);
+                    setPrefillQty(suggestedPurchaseQty(state, id));
+                  }}
+                >
                   {state.products.map((p) => (
                     <option key={p.id} value={p.id}>
-                      {p.id} / {p.name}
+                      {isRaw(p) ? 'MP' : 'PT'} · {p.id} / {p.name}
                     </option>
                   ))}
                 </select>
               </div>
               <div className="field">
-                <label htmlFor="pur-qty">Cantidad</label>
-                <input id="pur-qty" name="qty" type="number" min={1} defaultValue={12} required />
+                <label htmlFor="pur-qty">Cantidad sugerida</label>
+                <input id="pur-qty" name="qty" type="number" min={1} defaultValue={prefillQty} required />
               </div>
               <div className="field">
                 <label htmlFor="pur-date">Fecha</label>
@@ -156,7 +239,14 @@ export function PurchasesPage() {
               </div>
               <div className="field full">
                 <label htmlFor="pur-notes">Observaciones</label>
-                <textarea id="pur-notes" name="notes" maxLength={300} />
+                <textarea
+                  id="pur-notes"
+                  name="notes"
+                  maxLength={300}
+                  defaultValue={
+                    forecast.recommendations.find((r) => r.productId === prefillProduct)?.reason?.slice(0, 280) ?? ''
+                  }
+                />
               </div>
             </div>
             {error ? <div className="form-error visible">{error}</div> : null}

@@ -20,6 +20,12 @@ export function downloadCSV(name: string, rows: unknown[][]) {
   setTimeout(() => URL.revokeObjectURL(a.href), 500);
 }
 
+/** Exporta un reporte tabular genérico (cabeceras + filas). */
+export function exportReport(name: string, headers: string[], rows: unknown[][]) {
+  const file = name.toLowerCase().endsWith('.csv') ? name : `${name}.csv`;
+  downloadCSV(file, [headers, ...rows]);
+}
+
 export function exportInventory(state: AppState) {
   downloadCSV('OPTICLEAN_Inventario.csv', [
     [

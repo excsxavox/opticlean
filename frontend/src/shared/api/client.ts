@@ -64,4 +64,19 @@ export const api = {
     request<StateResponse>(`/api/warehouses/${encodeURIComponent(id)}`, { method: 'DELETE' }),
   activateWarehouse: (id: string) =>
     request<StateResponse>(`/api/warehouses/${encodeURIComponent(id)}/activate`, { method: 'POST' }),
+  saveFamily: (body: Record<string, unknown>) =>
+    request<StateResponse>('/api/families', { method: 'POST', body: JSON.stringify(body) }),
+  deleteFamily: (id: string) =>
+    request<StateResponse>(`/api/families/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+  placement: (productId: string, qty: number, exclude = '') =>
+    request<{
+      productId: string;
+      qty: number;
+      best: (Location & { score: number; free: number; reasons: string[]; familyMatch: boolean; fragileSafe: boolean; isEmpty: boolean; consolidates: boolean }) | null;
+      options: Array<Location & { score: number; free: number; reasons: string[]; familyMatch: boolean; fragileSafe: boolean; isEmpty: boolean; consolidates: boolean }>;
+      guidance: string;
+      product: { id: string; name: string; category: string; fragile: boolean; familyId?: string } | null;
+    }>(
+      `/api/placement?productId=${encodeURIComponent(productId)}&qty=${qty}&exclude=${encodeURIComponent(exclude)}`,
+    ),
 };

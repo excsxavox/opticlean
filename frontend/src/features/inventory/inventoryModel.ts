@@ -14,6 +14,7 @@ export type InventoryRow = {
 };
 
 export type InventoryFilter = 'all' | 'attention' | 'low' | 'unavailable' | 'reserved' | 'healthy';
+export type InventoryKindFilter = 'all' | 'finished' | 'raw';
 export type InventorySort = 'attention' | 'name' | 'stock-desc' | 'available-asc' | 'value-desc';
 
 export type InventoryFilters = {
@@ -21,6 +22,7 @@ export type InventoryFilters = {
   category?: string;
   supplier?: string;
   status?: InventoryFilter;
+  kind?: InventoryKindFilter;
   sort?: InventorySort;
 };
 
@@ -71,9 +73,11 @@ const byName = (a: InventoryRow, b: InventoryRow) =>
   (a.product.id < b.product.id ? -1 : a.product.id > b.product.id ? 1 : 0);
 
 export function filterInventoryRows(rows: InventoryRow[], filters: InventoryFilters = {}): InventoryRow[] {
-  const { query = '', category = '', supplier = '', status = 'all', sort = 'attention' } = filters;
+  const { query = '', category = '', supplier = '', status = 'all', kind = 'all', sort = 'attention' } = filters;
   const tokens = normalizeSearch(query).split(/\s+/).filter(Boolean);
   return rows.filter((row) => {
+    const rowKind = row.product.kind === 'raw' ? 'raw' : 'finished';
+    if (kind !== 'all' && rowKind !== kind) return false;
     if (category && row.product.category !== category) return false;
     if (supplier && row.product.supplier !== supplier) return false;
     if (status === 'attention' && row.status === 'healthy') return false;

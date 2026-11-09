@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAppState } from '../../shared/hooks/AppStateProvider';
 import {
@@ -10,13 +11,16 @@ import {
   statusColor,
   stock,
 } from '../../shared/lib/inventory';
+import { buildForecast } from '../../shared/lib/forecast';
 import { Badge, Btn, Kpi, PageHead } from '../../shared/components/ui';
 import { Icon } from '../../shared/components/Icon';
+import '../../styles/forecast.css';
 
 export function DashboardPage() {
   const { state, meta } = useAppState();
   const navigate = useNavigate();
-  if (!state || !meta) return null;
+  const forecast = useMemo(() => (state ? buildForecast(state) : null), [state]);
+  if (!state || !meta || !forecast) return null;
 
   const totalCells = meta.locations.length;
   const occupied = meta.locations.filter((l) => qtyAt(state, l.id) > 0).length;
@@ -118,6 +122,29 @@ export function DashboardPage() {
             <button type="button" className="icon-btn" onClick={() => navigate('/compras')}>
               <Icon name="chevron" />
             </button>
+          </div>
+          <div className="task-item">
+            <Icon name="spark" />
+            <div className="task-info">
+              <strong>
+                {forecast.productionRisks.length
+                  ? `${forecast.productionRisks.length} riesgo(s) de producción`
+                  : `${forecast.recommendations.filter((r) => r.urgency === 'now').length} compras urgentes`}
+              </strong>
+              <small>Modelo al {forecast.learningScore}% de aprendizaje · {forecast.insight}</small>
+            </div>
+            <button type="button" className="icon-btn" onClick={() => navigate('/compras')}>
+              <Icon name="chevron" />
+            </button>
+          </div>
+          <div className="fc-dash">
+            <Icon name="cart" />
+            <div>
+              <strong>Previsión adaptativa activa</strong>
+              <small>
+                Cuantos más pedidos y despachos registres, mejor anticipa insumos y evita cortar producción.
+              </small>
+            </div>
           </div>
         </section>
       </div>

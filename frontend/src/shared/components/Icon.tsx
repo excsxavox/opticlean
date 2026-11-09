@@ -50,6 +50,20 @@ const iconPaths: Record<string, string> = {
   shield: '<path d="m12 3 8 3v6c0 5-8 10-8 10S4 17 4 12V6Z"/><path d="m8 12 3 3 5-6"/>',
   building:
     '<path d="M4 21V3h12v18M16 9h5v12H2M8 7h1m3 0h1M8 11h1m3 0h1M8 15h1m3 0h1M8 21v-3h4v3"/>',
+  /** Cruz médica para línea hospitalaria */
+  hospital:
+    '<circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/>',
+  /** Planta / fábrica para línea industrial */
+  factory:
+    '<path d="M3 21h18M4 21V10l5 3V10l5 3V8l6-2v15M8 21v-3h3v3m5 0v-3h3v3"/>',
+  /** Edificio cívico para línea institucional */
+  landmark:
+    '<path d="M4 21h16M6 21V10l6-5 6 5v11M9 14h.01M12 14h.01M15 14h.01M9 17h.01M12 17h.01M15 17h.01"/>',
+  /** Matraz / química para insumos */
+  flask:
+    '<path d="M9 3h6M10 3v6.5L5.5 18a2.5 2.5 0 0 0 2.2 3.5h8.6a2.5 2.5 0 0 0 2.2-3.5L14 9.5V3M8.5 14h7"/>',
+  /** Gota / limpieza hogar */
+  droplet: '<path d="M12 3c3.5 5 6 8.2 6 11a6 6 0 1 1-12 0c0-2.8 2.5-6 6-11Z"/>',
   mail: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 5 9 8 9-8"/>',
   info: '<circle cx="12" cy="12" r="9"/><path d="M12 11v6m0-10v.01"/>',
   scan: '<path d="M3 8V3h5m8 0h5v5m0 8v5h-5M8 21H3v-5M3 12h18"/>',

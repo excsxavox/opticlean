@@ -1,17 +1,21 @@
 import { useId, useState, type KeyboardEvent } from 'react';
 import { Icon } from '../../shared/components/Icon';
 import { money, num } from '../../shared/lib/inventory';
+import { childrenStatus, isRaw, parentsOf } from '../../shared/lib/bom';
 import { faceLabel } from '../../shared/lib/warehouseLayout';
+import type { AppState } from '../../shared/types';
 import { inventoryStatusLabels, type InventoryRow } from './inventoryModel';
 import '../../styles/inventory-detail.css';
 
 type InventoryDetailPanelProps = {
+  state: AppState;
   row: InventoryRow;
   onClose: () => void;
   onEdit: () => void;
   onReceive: () => void;
   onLocate: (loc?: string) => void;
   onTrace: () => void;
+  onSelectRelated: (id: string) => void;
 };
 
 type DetailTab = 'locations' | 'lots';
@@ -38,11 +42,13 @@ function expiryLabel(expiry: string) {
 }
 
 export function InventoryDetailPanel({
-  row, onClose, onEdit, onReceive, onLocate, onTrace,
+  state, row, onClose, onEdit, onReceive, onLocate, onTrace, onSelectRelated,
 }: InventoryDetailPanelProps) {
   const [tab, setTab] = useState<DetailTab>('locations');
   const id = useId();
   const { product, stock, reserved, available, status, shortage } = row;
+  const bomChildren = childrenStatus(state, product);
+  const usedBy = isRaw(product) ? parentsOf(state, product.id) : [];
   const minimum = Math.max(0, product.min);
   const coverage = minimum > 0 ? Math.max(0, Math.min(100, available / minimum * 100)) : 0;
   const locationTotals = new Map<string, { qty: number; lots: number }>();
@@ -77,12 +83,60 @@ export function InventoryDetailPanel({
       <div className="inv-detail-product">
         <div className="inv-detail-product-meta">
           <span className="inv-detail-category">{product.category}</span>
+          {isRaw(product) && <span className="inv-detail-category inv-detail-kind">Insumo</span>}
           <span className="inv-detail-status"><span aria-hidden="true" />{inventoryStatusLabels[status]}</span>
         </div>
         <h2 id={`${id}-title`}>{product.name}</h2>
         <div className="inv-detail-sku">SKU <strong>{product.sku || product.id}</strong></div>
         <p className="inv-detail-supplier"><Icon name="building" />{product.supplier || 'Sin proveedor registrado'}</p>
       </div>
+
+      {bomChildren.length > 0 && (
+        <section className="inv-detail-bom" aria-label="Estructura de insumos">
+          <header>
+            <strong>Insumos del producto</strong>
+            <span>{bomChildren.length}</span>
+          </header>
+          <ul>
+            {bomChildren.map((child) => (
+              <li key={child.product.id}>
+                <button type="button" onClick={() => onSelectRelated(child.product.id)}>
+                  <span>
+                    <strong>{child.product.name}</strong>
+                    <small>{child.qtyPerUnit} uds. / unidad · alc. {num(child.buildable)}</small>
+                  </span>
+                  <em className={`inv-pill inv-pill-${child.status}`}>
+                    {child.status === 'ok' ? 'OK' : child.status === 'low' ? 'Bajo' : 'Crítico'}
+                  </em>
+                </button>
+                <div className="inv-detail-bom-meter"><span style={{ width: `${Math.max(4, child.coverage)}%` }} className={child.status} /></div>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {usedBy.length > 0 && (
+        <section className="inv-detail-bom inv-detail-parents" aria-label="Productos que usan este insumo">
+          <header>
+            <strong>Usado por</strong>
+            <span>{usedBy.length}</span>
+          </header>
+          <ul>
+            {usedBy.map((parent) => (
+              <li key={parent.id}>
+                <button type="button" onClick={() => onSelectRelated(parent.id)}>
+                  <span>
+                    <strong>{parent.name}</strong>
+                    <small>{parent.id} · {parent.category}</small>
+                  </span>
+                  <Icon name="chevron" />
+                </button>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       <div className="inv-detail-stock">
         <dl className="inv-detail-quantities">

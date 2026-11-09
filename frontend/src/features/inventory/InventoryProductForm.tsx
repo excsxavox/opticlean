@@ -2,7 +2,7 @@ import { useEffect, useId, useRef, useState, type ChangeEvent, type FormEvent } 
 import { api } from '../../shared/api/client';
 import { Icon } from '../../shared/components/Icon';
 import { useAppState } from '../../shared/hooks/AppStateProvider';
-import type { Product } from '../../shared/types';
+import type { Product, ProductComponent, ProductKind } from '../../shared/types';
 import './inventory-product-form.css';
 
 type ProductFormProps = {
@@ -13,9 +13,9 @@ type ProductFormProps = {
   onSaved: (productId: string) => void;
 };
 
-type FieldName = keyof Omit<Product, 'sku'>;
+type FieldName = 'id' | 'category' | 'name' | 'supplier' | 'price' | 'min' | 'weight' | 'volume';
 type FormValues = Record<FieldName, string>;
-type FormErrors = Partial<Record<FieldName, string>>;
+type FormErrors = Partial<Record<FieldName | 'components', string>>;
 
 const fieldOrder: FieldName[] = ['id', 'category', 'name', 'supplier', 'price', 'min', 'weight', 'volume'];
 const numericFields: FieldName[] = ['price', 'min', 'weight', 'volume'];
@@ -34,6 +34,10 @@ export function InventoryProductForm({ product, categories, products, onClose, o
   const [pending, setPending] = useState(false);
   const [errors, setErrors] = useState<FormErrors>({});
   const [serverError, setServerError] = useState('');
+  const [kind, setKind] = useState<ProductKind>(product?.kind === 'raw' ? 'raw' : 'finished');
+  const [components, setComponents] = useState<ProductComponent[]>(
+    () => (product?.components ?? []).map((c) => ({ productId: c.productId, qty: c.qty })),
+  );
   const [values, setValues] = useState<FormValues>(() => ({
     id: product?.id ?? '',
     category: product?.category ?? categories[0] ?? '',
@@ -44,8 +48,11 @@ export function InventoryProductForm({ product, categories, products, onClose, o
     weight: String(product?.weight ?? 1),
     volume: String(product?.volume ?? 1),
   }));
-  const categoryOptions = [...new Set([...categories, ...(product?.category ? [product.category] : [])])];
+  const categoryOptions = [...new Set([...categories, ...(product?.category ? [product.category] : []), 'Insumos'])];
   const supplierOptions = [...new Set(products.map((item) => item.supplier).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'es'));
+  const componentOptions = products
+    .filter((item) => item.id !== product?.id)
+    .sort((a, b) => a.name.localeCompare(b.name, 'es'));
 
   useEffect(() => {
     closeRef.current = onClose;
@@ -125,6 +132,18 @@ export function InventoryProductForm({ product, categories, products, onClose, o
     return '';
   };
 
+  const validateComponents = (): string => {
+    if (kind === 'raw') return '';
+    const seen = new Set<string>();
+    for (const row of components) {
+      if (!row.productId) return 'Selecciona el insumo en cada fila de componentes.';
+      if (!Number.isFinite(row.qty) || row.qty <= 0) return 'La cantidad de cada componente debe ser mayor que 0.';
+      if (seen.has(row.productId)) return 'No repitas el mismo insumo en la estructura.';
+      seen.add(row.productId);
+    }
+    return '';
+  };
+
   const updateField = (name: FieldName, value: string) => {
     setValues((current) => ({ ...current, [name]: value }));
     setErrors((current) => ({ ...current, [name]: undefined }));
@@ -150,6 +169,21 @@ export function InventoryProductForm({ product, categories, products, onClose, o
 
   const fieldError = (name: FieldName) => errors[name] ? <span id={`${fieldId(name)}-error`} className="inv-product-field-error">{errors[name]}</span> : null;
 
+  const addComponent = () => {
+    setComponents((current) => [...current, { productId: '', qty: 1 }]);
+    setErrors((current) => ({ ...current, components: undefined }));
+  };
+
+  const updateComponent = (index: number, patch: Partial<ProductComponent>) => {
+    setComponents((current) => current.map((row, i) => (i === index ? { ...row, ...patch } : row)));
+    setErrors((current) => ({ ...current, components: undefined }));
+  };
+
+  const removeComponent = (index: number) => {
+    setComponents((current) => current.filter((_, i) => i !== index));
+    setErrors((current) => ({ ...current, components: undefined }));
+  };
+
   const save = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (pendingRef.current) return;
@@ -158,6 +192,8 @@ export function InventoryProductForm({ product, categories, products, onClose, o
       const error = validateField(name, values[name]);
       if (error) nextErrors[name] = error;
     }
+    const componentError = validateComponents();
+    if (componentError) nextErrors.components = componentError;
     setErrors(nextErrors);
     const firstError = fieldOrder.find((name) => nextErrors[name]);
     if (firstError) {
@@ -165,12 +201,12 @@ export function InventoryProductForm({ product, categories, products, onClose, o
       if (field instanceof HTMLElement) field.focus();
       return;
     }
+    if (componentError) return;
     if (!event.currentTarget.reportValidity()) return;
 
     pendingRef.current = true;
     setPending(true);
     setServerError('');
-    // Existing identifiers stay unchanged so lots and orders keep their references.
     const productId = product?.id ?? values.id.trim().toUpperCase();
     try {
       const response = await api.saveProduct({
@@ -178,12 +214,17 @@ export function InventoryProductForm({ product, categories, products, onClose, o
         sku: product?.sku ?? productId,
         originalId: product?.id,
         name: values.name.trim(),
-        category: values.category,
+        category: kind === 'raw' && !values.category ? 'Insumos' : values.category,
         supplier: values.supplier.trim(),
         price: Number(values.price),
         min: Number(values.min),
         weight: Number(values.weight),
         volume: Number(values.volume),
+        kind,
+        components: kind === 'raw' ? [] : components.filter((c) => c.productId).map((c) => ({
+          productId: c.productId,
+          qty: Number(c.qty),
+        })),
       });
       applyResponse(response);
       toast(product ? 'Producto actualizado.' : 'Producto creado. Registra una recepción para añadir existencias.');
@@ -202,13 +243,17 @@ export function InventoryProductForm({ product, categories, products, onClose, o
         <div className="modal-header inv-product-header">
           <span className="inv-product-symbol" aria-hidden="true"><Icon name="box" /></span>
           <div>
-            <h2 id={`${uniqueId}-title`}>{product ? 'Editar producto' : 'Crear producto'}</h2>
-            <p id={`${uniqueId}-description`}>{product ? 'Actualiza sus datos y el nivel mínimo de existencias.' : 'Agrega un producto al catálogo de tu operación.'}</p>
+            <h2 id={`${uniqueId}-title`}>{product ? 'Editar ficha' : 'Crear producto'}</h2>
+            <p id={`${uniqueId}-description`}>
+              {product
+                ? 'Actualiza datos, tipo e insumos vinculados.'
+                : 'Define si es producto terminado o materia prima.'}
+            </p>
           </div>
           <button type="button" className="icon-btn" onClick={close} disabled={pending} aria-label="Cerrar formulario"><Icon name="close" /></button>
         </div>
         <div className="modal-body inv-product-body">
-          {!product ? <p className="inv-product-notice"><Icon name="info" /><span>Crear producto no añade existencias; registra una recepción.</span></p> : null}
+          {!product ? <p className="inv-product-notice"><Icon name="info" /><span>Crear ficha no añade existencias; registra una recepción.</span></p> : null}
           <form
             ref={formRef}
             id={formId}
@@ -225,10 +270,27 @@ export function InventoryProductForm({ product, categories, products, onClose, o
           >
             <fieldset className="inv-product-fields" disabled={pending}>
               <section className="inv-product-section" aria-labelledby={`${uniqueId}-identity`}>
-                <h3 id={`${uniqueId}-identity`}><span>01</span> Identidad del producto</h3>
+                <h3 id={`${uniqueId}-identity`}><span>01</span> Identidad</h3>
+                <div className="inv-kind-picker" role="group" aria-label="Tipo de ficha">
+                  <button type="button" className={kind === 'finished' ? 'is-active' : ''} aria-pressed={kind === 'finished'} onClick={() => setKind('finished')}>
+                    Producto terminado
+                  </button>
+                  <button
+                    type="button"
+                    className={kind === 'raw' ? 'is-active' : ''}
+                    aria-pressed={kind === 'raw'}
+                    onClick={() => {
+                      setKind('raw');
+                      setComponents([]);
+                      if (!values.category || values.category === categories[0]) updateField('category', 'Insumos');
+                    }}
+                  >
+                    Materia prima / Insumo
+                  </button>
+                </div>
                 <div className="form-grid">
                   <div className="field">
-                    <label htmlFor={fieldId('id')}>Código del producto</label>
+                    <label htmlFor={fieldId('id')}>Código</label>
                     <input {...fieldProps('id')} readOnly={!!product} placeholder="Ej. P025" autoComplete="off" spellCheck={false} />
                     <small id={`${fieldId('id')}-hint`}>{product ? 'El código identifica sus movimientos y no se puede editar.' : 'Código único. Se guardará en mayúsculas.'}</small>
                     {fieldError('id')}
@@ -242,7 +304,7 @@ export function InventoryProductForm({ product, categories, products, onClose, o
                     {fieldError('category')}
                   </div>
                   <div className="field full">
-                    <label htmlFor={fieldId('name')}>Nombre del producto</label>
+                    <label htmlFor={fieldId('name')}>Nombre</label>
                     <input {...fieldProps('name')} placeholder="Ej. Limpiador multiusos 1 L" autoComplete="off" />
                     {fieldError('name')}
                   </div>
@@ -254,6 +316,7 @@ export function InventoryProductForm({ product, categories, products, onClose, o
                   </div>
                 </div>
               </section>
+
               <section className="inv-product-section" aria-labelledby={`${uniqueId}-inventory`}>
                 <h3 id={`${uniqueId}-inventory`}><span>02</span> Control de inventario</h3>
                 <div className="form-grid">
@@ -270,32 +333,84 @@ export function InventoryProductForm({ product, categories, products, onClose, o
                   </div>
                 </div>
               </section>
+
               <section className="inv-product-section" aria-labelledby={`${uniqueId}-unit`}>
                 <h3 id={`${uniqueId}-unit`}><span>03</span> Datos por unidad</h3>
                 <div className="form-grid">
                   <div className="field">
                     <label htmlFor={fieldId('weight')}>Peso (kg)</label>
                     <input {...fieldProps('weight')} type="number" min="0" step="0.01" inputMode="decimal" />
-                    <small id={`${fieldId('weight')}-hint`}>Peso de una unidad de producto.</small>
+                    <small id={`${fieldId('weight')}-hint`}>Peso de una unidad.</small>
                     {fieldError('weight')}
                   </div>
                   <div className="field">
                     <label htmlFor={fieldId('volume')}>Volumen (L)</label>
                     <input {...fieldProps('volume')} type="number" min="0" step="0.01" inputMode="decimal" />
-                    <small id={`${fieldId('volume')}-hint`}>Volumen de una unidad de producto.</small>
+                    <small id={`${fieldId('volume')}-hint`}>Volumen de una unidad.</small>
                     {fieldError('volume')}
                   </div>
                 </div>
               </section>
+
+              {kind === 'finished' && (
+                <section className="inv-product-section" aria-labelledby={`${uniqueId}-bom`}>
+                  <h3 id={`${uniqueId}-bom`}><span>04</span> Estructura padre → hijo</h3>
+                  <p className="inv-bom-help">Indica qué insumos se necesitan por cada unidad del producto. Así verás alertas cuando la materia prima bloquee la reposición.</p>
+                  <div className="inv-bom-editor">
+                    {components.length ? components.map((row, index) => (
+                      <div className="inv-bom-editor-row" key={`${index}-${row.productId || 'new'}`}>
+                        <label className="field">
+                          <span className="inv-sr-only">Insumo</span>
+                          <select
+                            value={row.productId}
+                            onChange={(event) => updateComponent(index, { productId: event.target.value })}
+                            aria-label={`Insumo ${index + 1}`}
+                          >
+                            <option value="">Seleccionar insumo…</option>
+                            {componentOptions.map((item) => (
+                              <option key={item.id} value={item.id}>
+                                {item.kind === 'raw' ? 'MP · ' : ''}{item.name} ({item.id})
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                        <label className="field inv-bom-qty">
+                          <span className="inv-sr-only">Cantidad</span>
+                          <input
+                            type="number"
+                            min="0.01"
+                            step="0.01"
+                            value={row.qty}
+                            onChange={(event) => updateComponent(index, { qty: Number(event.target.value) })}
+                            aria-label={`Cantidad del insumo ${index + 1}`}
+                          />
+                        </label>
+                        <button type="button" className="icon-btn" aria-label="Quitar componente" onClick={() => removeComponent(index)}>
+                          <Icon name="close" />
+                        </button>
+                      </div>
+                    )) : (
+                      <p className="inv-bom-empty">Sin insumos vinculados. Puedes añadirlos ahora o más adelante.</p>
+                    )}
+                    <button type="button" className="btn" onClick={addComponent}>
+                      <Icon name="plus" /> Añadir insumo
+                    </button>
+                    {errors.components ? <span className="inv-product-field-error">{errors.components}</span> : null}
+                  </div>
+                </section>
+              )}
             </fieldset>
             {serverError ? <div ref={errorRef} className="inv-product-save-error" role="alert" tabIndex={-1}><Icon name="alert" /><span>{serverError}</span></div> : null}
           </form>
         </div>
         <div className="modal-footer inv-product-footer">
-          <span role="status">{pending ? 'Guardando producto…' : 'Todos los campos son obligatorios.'}</span>
+          <span role="status">{pending ? 'Guardando…' : kind === 'finished' ? 'Los insumos son opcionales.' : 'Ficha de materia prima.'}</span>
           <div>
             <button type="button" className="btn" onClick={close} disabled={pending}>Cancelar</button>
-            <button type="submit" form={formId} className="btn primary" disabled={pending}><Icon name={pending ? 'refresh' : 'save'} />{pending ? 'Guardando…' : product ? 'Guardar cambios' : 'Crear producto'}</button>
+            <button type="submit" form={formId} className="btn primary" disabled={pending}>
+              <Icon name={pending ? 'refresh' : 'save'} />
+              {pending ? 'Guardando…' : product ? 'Guardar cambios' : 'Crear ficha'}
+            </button>
           </div>
         </div>
       </section>

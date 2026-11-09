@@ -12,6 +12,7 @@ const titles: Record<string, string> = {
   '/recepcion': 'Recepción',
   '/bodega': 'Bodega visual',
   '/bodegas': 'Administración de bodegas',
+  '/familias': 'Familias de bodega',
   '/pedidos': 'Pedidos',
   '/pedidos/nuevo': 'Nuevo pedido',
   '/compras': 'Órdenes de compra',
@@ -70,6 +71,7 @@ export function AppLayout() {
           {nav('/recepcion', 'Recepción', 'receive')}
           {nav('/bodega', 'Bodega visual', 'warehouse', 'NUEVO')}
           {nav('/bodegas', 'Bodegas', 'building')}
+          {nav('/familias', 'Familias', 'layers')}
           {nav('/pedidos', 'Pedidos', 'orders', pending || '')}
           {nav('/compras', 'Abastecimiento', 'cart')}
           {nav('/logistica', 'Logística', 'truck')}

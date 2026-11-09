@@ -1,0 +1,85 @@
+.fam-page { min-width: 0; }
+.fam-hint {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  margin-bottom: 16px;
+  padding: 12px 14px;
+  border: 1px solid #d7e8f8;
+  border-radius: 10px;
+  background: #f3f9ff;
+  color: #355471;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.fam-hint .icon { width: 18px; height: 18px; color: #0871d0; margin-top: 1px; }
+.fam-hint p { margin: 0; }
+
+.fam-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 12px;
+}
+
+.fam-card {
+  --fam-color: #467fc2;
+  border: 1px solid #dfe8f1;
+  border-radius: 12px;
+  background: #fff;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.fam-card > header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.fam-swatch {
+  width: 14px;
+  height: 34px;
+  border-radius: 6px;
+  background: var(--fam-color);
+  flex-shrink: 0;
+}
+.fam-card strong { display: block; font-size: 14px; }
+.fam-card small { display: block; margin-top: 2px; color: #687f94; font-size: 11px; }
+.fam-card > p { margin: 0; font-size: 12px; color: #5a7188; line-height: 1.45; min-height: 34px; }
+.fam-card dl { margin: 0; display: grid; gap: 6px; }
+.fam-card dt { font-size: 10px; color: #7a90a4; }
+.fam-card dd { margin: 2px 0 0; font-size: 12px; font-weight: 600; }
+.fam-card footer { display: flex; gap: 6px; margin-top: auto; }
+.fam-pill {
+  margin-left: auto;
+  font-style: normal;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 3px 7px;
+  border-radius: 999px;
+  background: #fff1d8;
+  color: #9a6510;
+}
+
+.fam-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.fam-chips button {
+  border: 1px solid #d7e3ef;
+  background: #fff;
+  border-radius: 999px;
+  padding: 6px 10px;
+  font-size: 11px;
+  color: #4d6880;
+}
+.fam-chips button.is-on {
+  background: #eaf4ff;
+  border-color: #9ec7eb;
+  color: #0868ba;
+  font-weight: 650;
+}
+.fam-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: #355471;
+}

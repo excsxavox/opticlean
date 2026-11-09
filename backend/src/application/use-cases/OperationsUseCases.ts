@@ -19,17 +19,22 @@ import {
   registerIncident,
   reserved,
   stock,
-  suggest,
   upsertProduct,
 } from '../../domain/inventory.service.js';
 import { uid } from '../../domain/inventory.service.js';
+import { suggest } from '../../domain/placement.service.js';
+import {
+  deleteFamily,
+  ensureFamilies,
+  upsertFamily,
+} from '../../domain/families.service.js';
 import {
   activateWarehouse,
   createWarehouse,
   deleteWarehouse,
   upsertWarehouse,
 } from '../../domain/warehouse-admin.service.js';
-import type { WarehouseSite } from '../../domain/types.js';
+import type { WarehouseFamily, WarehouseSite } from '../../domain/types.js';
 
 export const BUNDLES = [
   {
@@ -116,6 +121,20 @@ export class OperationsUseCases {
     const { originalId, ...rest } = body;
     return this.mutate((s) => {
       upsertProduct(s, rest, originalId);
+    });
+  }
+
+  async saveFamily(body: WarehouseFamily) {
+    return this.mutate((s) => {
+      ensureFamilies(s);
+      upsertFamily(s, body);
+    });
+  }
+
+  async removeFamily(id: string) {
+    return this.mutate((s) => {
+      ensureFamilies(s);
+      deleteFamily(s, id);
     });
   }
 

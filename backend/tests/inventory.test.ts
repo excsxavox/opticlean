@@ -6,7 +6,6 @@ import {
   stock,
   available,
   qtyAt,
-  suggest,
   receive,
   move,
   createOrder,
@@ -14,6 +13,7 @@ import {
   prepare,
   dispatch,
 } from '../src/domain/inventory.service.js';
+import { suggest } from '../src/domain/placement.service.js';
 
 test('Every seeded location respects capacity and one-product storage', () => {
   const s = seed();

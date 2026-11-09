@@ -2,7 +2,7 @@ import cors from 'cors';
 import express from 'express';
 import { JsonStateRepository } from '../persistence/JsonStateRepository.js';
 import { OperationsUseCases } from '../../application/use-cases/OperationsUseCases.js';
-import { suggest } from '../../domain/inventory.service.js';
+import { suggest, suggestPlacement } from '../../domain/placement.service.js';
 
 const app = express();
 const repo = new JsonStateRepository();
@@ -55,6 +55,31 @@ app.get('/api/suggest', async (req, res, next) => {
     const qty = Number(req.query.qty ?? 1);
     const exclude = String(req.query.exclude ?? '');
     res.json(suggest(state, productId, qty, exclude));
+  } catch (e) {
+    next(e);
+  }
+});
+
+app.get('/api/placement', async (req, res, next) => {
+  try {
+    const state = await ops.getState();
+    const productId = String(req.query.productId ?? '');
+    const qty = Number(req.query.qty ?? 1);
+    const exclude = String(req.query.exclude ?? '');
+    const options = suggestPlacement(state, productId, qty, exclude);
+    const p = state.products.find((x) => x.id === productId);
+    res.json({
+      productId,
+      qty,
+      best: options[0] ?? null,
+      options: options.slice(0, 8),
+      guidance: options[0]
+        ? `Ubica en ${options[0].id}: ${options[0].reasons.join(' · ')}`
+        : 'No hay ubicación compatible para esta cantidad.',
+      product: p
+        ? { id: p.id, name: p.name, category: p.category, fragile: !!p.fragile, familyId: p.familyId }
+        : null,
+    });
   } catch (e) {
     next(e);
   }
@@ -156,6 +181,24 @@ app.post('/api/clients', async (req, res, next) => {
 app.post('/api/purchases', async (req, res, next) => {
   try {
     const state = await ops.addPurchase(req.body);
+    res.json({ state, metrics: ops.metricsSnapshot(state) });
+  } catch (e) {
+    next(e);
+  }
+});
+
+app.post('/api/families', async (req, res, next) => {
+  try {
+    const state = await ops.saveFamily(req.body);
+    res.json({ state, metrics: ops.metricsSnapshot(state) });
+  } catch (e) {
+    next(e);
+  }
+});
+
+app.delete('/api/families/:id', async (req, res, next) => {
+  try {
+    const state = await ops.removeFamily(req.params.id);
     res.json({ state, metrics: ops.metricsSnapshot(state) });
   } catch (e) {
     next(e);

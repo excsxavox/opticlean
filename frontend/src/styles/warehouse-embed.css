@@ -1,0 +1,24 @@
+/* La ruta /bodega ocupa todo el main sin padding del shell */
+.page:has(.warehouse-embed) {
+  padding: 0 !important;
+  overflow: hidden;
+}
+.page:has(.warehouse-embed) .page-footer {
+  display: none;
+}
+
+.warehouse-embed {
+  margin: 0;
+  min-height: calc(100vh - 59px);
+  background: #f4f7fb;
+}
+
+.warehouse-embed__frame {
+  display: block;
+  width: 100%;
+  min-height: calc(100vh - 59px);
+  height: calc(100vh - 59px);
+  border: 0;
+  background: #f4f7fb;
+  border-radius: 0;
+}

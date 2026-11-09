@@ -1,3 +1,11 @@
+/** Componente / materia prima requerida por unidad del producto padre. */
+export type ProductComponent = {
+  productId: string;
+  qty: number;
+};
+
+export type ProductKind = 'finished' | 'raw';
+
 export type Product = {
   id: string;
   sku: string;
@@ -8,6 +16,26 @@ export type Product = {
   min: number;
   weight: number;
   volume: number;
+  /** finished = producto de venta; raw = insumo / materia prima */
+  kind?: ProductKind;
+  /** Hijos (insumos) necesarios para reponer / fabricar este producto */
+  components?: ProductComponent[];
+  /** Familia de bodega asignada (opcional; si falta se infiere por categoría) */
+  familyId?: string;
+  /** Producto frágil: prioriza zonas bajas y racks de familia frágil */
+  fragile?: boolean;
+};
+
+/** Familia operativa de bodega: agrupa líneas y racks para ubicación inteligente. */
+export type WarehouseFamily = {
+  id: string;
+  code: string;
+  name: string;
+  productCategories: string[];
+  rackIds: string[];
+  fragilePreferred: boolean;
+  color: string;
+  notes?: string;
 };
 
 export type Lot = {
@@ -127,6 +155,8 @@ export type AppState = {
   purchases: Purchase[];
   receipts: Receipt[];
   settings: Settings;
+  /** Familias de bodega para reglas de ubicación */
+  families?: WarehouseFamily[];
 };
 
 export type Location = {
