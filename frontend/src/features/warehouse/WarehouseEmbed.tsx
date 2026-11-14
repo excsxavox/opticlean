@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import '../../styles/warehouse-embed.css';
 
-const EMBED_SRC = '/control-embed/index.html?embed=1#bodega';
+const EMBED_SRC = '/control-embed/index.html?embed=1&v=20261109a#bodega';
 
 type Props = {
   /** Altura del iframe. Por defecto ocupa el viewport disponible. */

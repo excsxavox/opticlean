@@ -9,6 +9,8 @@ import {
 } from 'react';
 import { api } from '../api/client';
 import type { AppState, Meta, Metrics } from '../types';
+import { getToken } from '../auth/session';
+import { useAuth } from './AuthProvider';
 
 type Ctx = {
   state: AppState | null;
@@ -24,6 +26,7 @@ type Ctx = {
 const AppStateContext = createContext<Ctx | null>(null);
 
 export function AppStateProvider({ children }: { children: ReactNode }) {
+  const { user, loading: authLoading } = useAuth();
   const [state, setState] = useState<AppState | null>(null);
   const [meta, setMeta] = useState<Meta | null>(null);
   const [metrics, setMetrics] = useState<Metrics | null>(null);
@@ -38,6 +41,10 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const refresh = useCallback(async () => {
+    if (!getToken()) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
@@ -52,8 +59,17 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
   }, [applyResponse]);
 
   useEffect(() => {
+    if (authLoading) return;
+    if (!user) {
+      setState(null);
+      setMeta(null);
+      setMetrics(null);
+      setLoading(false);
+      setError(null);
+      return;
+    }
     void refresh();
-  }, [refresh]);
+  }, [authLoading, user, refresh]);
 
   const toast = useCallback((message: string) => {
     setToastMsg(message);

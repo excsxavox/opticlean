@@ -32,12 +32,23 @@
     html.embed-mode #toast {
       left: 50% !important;
     }
+
+    html.embed-mode.mobile-embed .page { padding: 12px 12px 20px !important; }
+    html.embed-mode.mobile-embed .page-head h1 { font-size: 22px !important; }
+    html.embed-mode.mobile-embed .page-head p { font-size: 12px !important; }
+    html.embed-mode.mobile-embed .head-actions { flex-wrap: wrap; gap: 8px; }
+    html.embed-mode.mobile-embed .kpis { grid-template-columns: 1fr 1fr !important; gap: 8px !important; }
+    html.embed-mode.mobile-embed .warehouse-canvas { height: min(52vh, 360px) !important; }
+    html.embed-mode.mobile-embed .warehouse-bottom { grid-template-columns: 1fr !important; }
+    html.embed-mode.mobile-embed .page-footer { display: none !important; }
+
   </style>
   <script>
     (function () {
       var params = new URLSearchParams(location.search);
       if (params.get('embed') === '1') {
         document.documentElement.classList.add('embed-mode');
+        if (params.get('mobile') === '1') document.documentElement.classList.add('mobile-embed');
         if (!location.hash || location.hash === '#') location.hash = '#bodega';
       }
     })();
@@ -47,6 +58,6 @@
   <div id="app"></div>
   <div id="modal-root"></div>
   <div id="toast" role="status" aria-live="polite"></div>
-  <script type="module" src="app.mjs"></script>
+  <script type="module" src="app.mjs?v=20261109a"></script>
 </body>
 </html>

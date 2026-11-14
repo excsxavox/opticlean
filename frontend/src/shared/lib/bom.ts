@@ -58,7 +58,7 @@ export type LineSummary = {
   samples: Array<{ id: string; name: string; available: number; status: 'ok' | 'low' | 'critical' }>;
 };
 
-export function summarizeByLine(state: AppState, rows: Array<{ product: Product; available: number; status: string }>): LineSummary[] {
+export function summarizeByLine(_state: AppState, rows: Array<{ product: Product; available: number; status: string }>): LineSummary[] {
   const map = new Map<string, LineSummary>();
   for (const row of rows) {
     if (isRaw(row.product)) continue;

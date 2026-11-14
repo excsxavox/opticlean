@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom';
+import { clearSession } from '../auth';
 import { Icon, Logo } from '../components/Icon';
 import { available, clientName, money, stock } from '../lib/inventory';
 import type { AppState } from '../types';
@@ -19,6 +20,17 @@ export function HomePage({ state }: { state: AppState }) {
           </strong>
           <small>Operación móvil</small>
         </div>
+        <button
+          type="button"
+          className="btn ghost small"
+          style={{ marginLeft: 'auto' }}
+          onClick={() => {
+            clearSession();
+            window.location.assign('/login');
+          }}
+        >
+          Salir
+        </button>
       </header>
 
       <section className="welcome">

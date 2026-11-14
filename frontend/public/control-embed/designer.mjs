@@ -1,9 +1,9 @@
 // Warehouse designer: edit the outline (rounded polygon), place racks and define sections in 2D,
 // preview the result in 3D, and save it as the structure the whole app works with.
-import {cameraTransition} from './anim.mjs';
-import {limitingFloor,RACK_BASE,pointInPolygon,sampleOutline,fitText,addDock,addConnector,addFloor,maxLevels,clearance,rackHeight,allRacks,LEVEL_H,SLAB,CELL,bounds,outlinePath,corners,rackRect,rackSize,presetOutline,resizeOutline,addRack,addSection,sectionOf,rackIssues,validateLayout,locationIds,defaultLayout,MAX_COLS,MAX_LEVELS} from './layout.mjs';
-import {iso3D} from './render.mjs';
-import {categories,applyLayout} from './model.mjs';
+import {cameraTransition} from './anim.mjs?v=20261109a';
+import {limitingFloor,RACK_BASE,pointInPolygon,sampleOutline,fitText,addDock,addConnector,addFloor,maxLevels,clearance,rackHeight,allRacks,LEVEL_H,SLAB,CELL,bounds,outlinePath,corners,rackRect,rackSize,presetOutline,resizeOutline,addRack,addSection,sectionOf,rackIssues,validateLayout,locationIds,defaultLayout,MAX_COLS,MAX_LEVELS} from './layout.mjs?v=20261109a';
+import {iso3D} from './render.mjs?v=20261109a';
+import {categories,applyLayout} from './model.mjs?v=20261109a';
 
 const W=820,H=450,r1=v=>Math.round(v*10)/10,clone=o=>JSON.parse(JSON.stringify(o));
 const snap=(v,g)=>Math.round(v/g)*g,clamp=(v,a,b)=>Math.min(b,Math.max(a,v));

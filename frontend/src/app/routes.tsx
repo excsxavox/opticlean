@@ -1,6 +1,8 @@
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { AppLayout } from './AppLayout';
 import { useAppState } from '../shared/hooks/AppStateProvider';
+import { useAuth } from '../shared/hooks/AuthProvider';
+import { LoginPage } from '../features/auth/LoginPage';
 import { DashboardPage } from '../features/dashboard/DashboardPage';
 import { InventoryPage } from '../features/inventory/InventoryPage';
 import { ReceptionPage } from '../features/reception/ReceptionPage';
@@ -16,23 +18,26 @@ import { SettingsPage } from '../features/settings/SettingsPage';
 import { WarehousesAdminPage } from '../features/warehouses/WarehousesAdminPage';
 import { FamiliesPage } from '../features/families/FamiliesPage';
 
-function LoadingShell() {
+function LoadingShell({ label = 'Cargando operación…' }: { label?: string }) {
   return (
     <div className="page" style={{ padding: 40 }}>
-      <p>Cargando operación…</p>
+      <p>{label}</p>
     </div>
   );
 }
 
-export function AppRoutes() {
+function ProtectedApp() {
+  const { loading: authLoading, user } = useAuth();
   const { loading, error, refresh } = useAppState();
 
+  if (authLoading) return <LoadingShell label="Verificando sesión…" />;
+  if (!user) return <Navigate to="/login" replace />;
   if (loading) return <LoadingShell />;
   if (error) {
     return (
       <div className="page" style={{ padding: 40 }}>
         <p>{error}</p>
-        <p className="subtle">Asegúrate de que el backend esté en ejecución (puerto 3001).</p>
+        <p className="subtle">Asegúrate de que el backend esté en ejecución.</p>
         <button type="button" className="btn primary" onClick={() => void refresh()}>
           Reintentar
         </button>
@@ -59,6 +64,15 @@ export function AppRoutes() {
         <Route path="configuracion" element={<SettingsPage />} />
         <Route path="*" element={<Navigate to="/bodega" replace />} />
       </Route>
+    </Routes>
+  );
+}
+
+export function AppRoutes() {
+  return (
+    <Routes>
+      <Route path="/login" element={<LoginPage />} />
+      <Route path="/*" element={<ProtectedApp />} />
     </Routes>
   );
 }

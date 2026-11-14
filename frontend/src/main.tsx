@@ -2,6 +2,7 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import { AppRoutes } from './app/routes';
+import { AuthProvider } from './shared/hooks/AuthProvider';
 import { AppStateProvider } from './shared/hooks/AppStateProvider';
 import './styles/global.css';
 import './styles/warehouse-designer.css';
@@ -9,9 +10,11 @@ import './styles/warehouse-designer.css';
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <BrowserRouter>
-      <AppStateProvider>
-        <AppRoutes />
-      </AppStateProvider>
+      <AuthProvider>
+        <AppStateProvider>
+          <AppRoutes />
+        </AppStateProvider>
+      </AuthProvider>
     </BrowserRouter>
   </StrictMode>,
 );

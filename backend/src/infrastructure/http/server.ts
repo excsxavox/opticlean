@@ -3,6 +3,7 @@ import express from 'express';
 import { JsonStateRepository } from '../persistence/JsonStateRepository.js';
 import { OperationsUseCases } from '../../application/use-cases/OperationsUseCases.js';
 import { suggest, suggestPlacement } from '../../domain/placement.service.js';
+import { authRequired, login, publicUserFromRequest } from '../auth/auth.js';
 
 const app = express();
 const repo = new JsonStateRepository();
@@ -12,6 +13,29 @@ app.use(cors());
 app.use(express.json());
 
 app.get('/api/health', (_req, res) => res.json({ ok: true }));
+
+app.post('/api/auth/login', (req, res) => {
+  try {
+    const email = String(req.body?.email ?? '');
+    const password = String(req.body?.password ?? '');
+    if (!email || !password) {
+      res.status(400).json({ error: 'Ingresa correo y contraseña' });
+      return;
+    }
+    res.json(login(email, password));
+  } catch (e) {
+    res.status(401).json({ error: e instanceof Error ? e.message : 'No autorizado' });
+  }
+});
+
+app.get('/api/auth/me', authRequired, (req, res) => {
+  res.json({ user: publicUserFromRequest(req) });
+});
+
+app.use('/api', (req, res, next) => {
+  if (req.path === '/health' || req.path === '/auth/login') return next();
+  return authRequired(req, res, next);
+});
 
 app.get('/api/meta', async (_req, res, next) => {
   try {

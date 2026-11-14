@@ -1,9 +1,9 @@
-import {KEY,categories,racks,locations,applyLayout,normalizeLayout,defaultLayout,money,num,seed,stock,reserved,available,qtyAt,product,client,orderValue,uid,event,suggest,receive,move,createOrder,pickPlan,prepare,orderWeight,dispatch,adjust,writeOff,cancelOrder,returnOrder,expiredQty,isBlocked,blockLocation,unblockLocation,toQuarantine,putAway,discardStaging,stagingZones,replenishmentPlan,consolidationPlan,addVehicle,vehicleLoad,defaultVehicles,cancelPurchase,pendingPurchase,isOpenPurchase} from './model.mjs';
+import {KEY,categories,racks,locations,applyLayout,normalizeLayout,defaultLayout,money,num,seed,stock,reserved,available,qtyAt,product,client,orderValue,uid,event,suggest,receive,move,createOrder,pickPlan,prepare,orderWeight,dispatch,adjust,writeOff,cancelOrder,returnOrder,expiredQty,isBlocked,blockLocation,unblockLocation,toQuarantine,putAway,discardStaging,stagingZones,replenishmentPlan,consolidationPlan,addVehicle,vehicleLoad,defaultVehicles,cancelPurchase,pendingPurchase,isOpenPurchase} from './model.mjs?v=20261109a';
 
-import {plan2D,iso3D,frontView} from './render.mjs';
-import {animateSwitch,originOf,cameraTransition} from './anim.mjs';
-import {rackOfLoc,sectionOf,racksIn,floorOfRack,locId} from './layout.mjs';
-import {initDesigner,designerPage,designerReset} from './designer.mjs';
+import {plan2D,iso3D,frontView} from './render.mjs?v=20261109a';
+import {animateSwitch,originOf,cameraTransition} from './anim.mjs?v=20261109a';
+import {rackOfLoc,sectionOf,racksIn,floorOfRack,locId} from './layout.mjs?v=20261109a';
+import {initDesigner,designerPage,designerReset} from './designer.mjs?v=20261109a';
 const $=(q,root=document)=>root.querySelector(q), $$=(q,root=document)=>[...root.querySelectorAll(q)];
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 let state;try{const saved=JSON.parse(localStorage.getItem(KEY));state=saved?.version===1?saved:seed()}catch{state=seed()}

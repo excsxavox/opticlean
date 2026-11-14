@@ -1,18 +1,38 @@
+import { clearSession, getToken, type AuthUser } from './auth';
 import type { AppState, PlacementResponse, Product, PickStep } from './types';
 
 export type { AppState, PlacementOption, PlacementResponse, Product, WarehouseFamily } from './types';
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    ...(init?.headers as Record<string, string> | undefined),
+  };
+  const token = getToken();
+  if (token) headers.Authorization = `Bearer ${token}`;
+
   const res = await fetch(path, {
-    headers: { 'Content-Type': 'application/json', ...init?.headers },
     ...init,
+    headers,
   });
   const data = await res.json().catch(() => ({}));
+  if (res.status === 401 && path !== '/api/auth/login') {
+    clearSession();
+    if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/login')) {
+      window.location.assign('/login');
+    }
+  }
   if (!res.ok) throw new Error((data as { error?: string }).error ?? res.statusText);
   return data as T;
 }
 
 export const api = {
+  login: (email: string, password: string) =>
+    request<{ token: string; user: AuthUser }>('/api/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({ email, password }),
+    }),
+  me: () => request<{ user: AuthUser }>('/api/auth/me'),
   getState: () => request<{ state: AppState }>('/api/state'),
   placement: (productId: string, qty: number) =>
     request<PlacementResponse>(

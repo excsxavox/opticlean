@@ -1,5 +1,5 @@
 // SVG renderers driven by the layout: 2D plan, isometric 3D scene (whole warehouse or one section) and rack elevation.
-import {CELL,RACK_DEPTH,LEVEL_H,SLAB,fitText,bounds,sampleOutline,outlinePath,clipToRect,signedArea,rackRect,rackHeight,sectionOf,locId,floorsByElevation,allRacks} from './layout.mjs';
+import {CELL,RACK_DEPTH,LEVEL_H,SLAB,fitText,bounds,sampleOutline,outlinePath,clipToRect,signedArea,rackRect,rackHeight,sectionOf,locId,floorsByElevation,allRacks} from './layout.mjs?v=20261109a';
 
 const W=820,H=450,r1=v=>Math.round(v*10)/10;
 const pts=a=>a.map(p=>p.map(r1).join(',')).join(' ');

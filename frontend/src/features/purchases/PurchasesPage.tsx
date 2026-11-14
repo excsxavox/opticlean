@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAppState } from '../../shared/hooks/AppStateProvider';
 import { api } from '../../shared/api/client';
-import { available, product } from '../../shared/lib/inventory';
+import { product } from '../../shared/lib/inventory';
 import { isRaw } from '../../shared/lib/bom';
 import { buildForecast, suggestedPurchaseQty, type ConfidenceLevel } from '../../shared/lib/forecast';
 import { Badge, Btn, Empty, Kpi, PageHead, ProductCell } from '../../shared/components/ui';

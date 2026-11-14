@@ -2,6 +2,7 @@ import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useState } from 'react';
 import { Icon, Logo } from '../shared/components/Icon';
 import { useAppState } from '../shared/hooks/AppStateProvider';
+import { useAuth } from '../shared/hooks/AuthProvider';
 import { api } from '../shared/api/client';
 import { available } from '../shared/lib/inventory';
 import { Modal } from '../shared/components/Modal';
@@ -25,6 +26,7 @@ const titles: Record<string, string> = {
 
 export function AppLayout() {
   const { state } = useAppState();
+  const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [menuOpen, setMenuOpen] = useState(false);
   const [assistantOpen, setAssistantOpen] = useState(false);
@@ -32,6 +34,13 @@ export function AppLayout() {
   const [notifyOpen, setNotifyOpen] = useState(false);
 
   if (!state) return null;
+
+  const initials = (user?.name || state.settings.operator || 'OC')
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((p) => p[0]?.toUpperCase() ?? '')
+    .join('') || 'OC';
 
   const path = window.location.pathname;
   const title = titles[path] ?? 'Bodega visual';
@@ -95,10 +104,21 @@ export function AppLayout() {
             </button>
           </div>
           <div className="user">
-            <div className="avatar">ER</div>
+            <div className="avatar">{initials}</div>
             <div>
-              <strong>{state.settings.operator}</strong>
-              <span>Coordinación de operaciones</span>
+              <strong>{user?.name || state.settings.operator}</strong>
+              <span>{user?.email || 'Coordinación de operaciones'}</span>
+              <button
+                type="button"
+                className="btn ghost small"
+                style={{ marginTop: 6, padding: 0, minHeight: 0 }}
+                onClick={() => {
+                  logout();
+                  navigate('/login', { replace: true });
+                }}
+              >
+                Cerrar sesión
+              </button>
             </div>
           </div>
         </div>

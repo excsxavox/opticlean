@@ -1,6 +1,6 @@
 export const KEY='opticlean-control-v1';
 export const categories=['Hogar','Industrial','Institucional','Hospitalaria'];
-import {defaultLayout,locId,normalizeLayout} from './layout.mjs';
+import {defaultLayout,locId,normalizeLayout} from './layout.mjs?v=20261109a';
 // `racks` and `locations` are live arrays derived from the layout. applyLayout refills them in place,
 // so every module that imported them keeps seeing the current warehouse structure.
 export const racks=[];
