@@ -1,4 +1,4 @@
-import { Fragment, useMemo, useRef, useState } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAppState } from '../../shared/hooks/AppStateProvider';
 import { activeWarehouseId, num } from '../../shared/lib/inventory';
@@ -66,6 +66,7 @@ export function InventoryWorkspace({ state, categories, toast }: {
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [filtersOpen, setFiltersOpen] = useState(() => Boolean(params.get('proveedor') || params.get('estado')));
   const inspector = useRef<HTMLElement>(null);
+  const catalogRef = useRef<HTMLElement>(null);
   const query = params.get('q') ?? '';
   const category = params.get('linea') ?? '';
   const supplier = params.get('proveedor') ?? '';
@@ -77,6 +78,7 @@ export function InventoryWorkspace({ state, categories, toast }: {
     () => filterInventoryRows(allRows, { query, category, supplier, status, kind, sort }),
     [allRows, query, category, supplier, status, kind, sort],
   );
+  const attentionMode = status === 'attention';
   const warehouse = state.warehouses.find((site) => site.id === activeWarehouseId(state));
   const warehouseName = warehouse?.name ?? state.settings.warehouse;
   const categoryNames = [...new Set([...categories, ...state.products.map((p) => p.category)])];
@@ -112,7 +114,14 @@ export function InventoryWorkspace({ state, categories, toast }: {
     }
   };
   const receive = (id: string) => navigate('/recepcion', { state: { productId: id } });
+  const purchase = (id: string, qty?: number) =>
+    navigate('/compras', { state: { productId: id, qty: qty && qty > 0 ? Math.ceil(qty) : undefined } });
   const locate = (id: string, loc?: string) => navigate('/bodega', { state: loc ? { loc, productId: id } : { productId: id } });
+
+  useEffect(() => {
+    if (!attentionMode) return;
+    requestAnimationFrame(() => catalogRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+  }, [attentionMode, kind]);
   const exportRows = () => {
     downloadCSV('OPTICLEAN_Inventario_filtrado.csv', [
       ['Bodega', 'Tipo', 'Código', 'SKU', 'Producto', 'Línea', 'Proveedor', 'Físico', 'Reservado', 'Disponible', 'Mínimo', 'Estado', 'Ubicaciones', 'PVP', 'Valor a PVP', 'Insumos'],
@@ -198,15 +207,38 @@ export function InventoryWorkspace({ state, categories, toast }: {
         </button>
       </section>
 
+      {attentionMode && (
+        <section className="inv-replenish-banner" aria-label="Modo reposición">
+          <div>
+            <span className="inv-critical-kicker">Prioridad de reposición</span>
+            <h2>
+              {rows.length} {kind === 'raw' ? 'insumos' : kind === 'finished' ? 'productos' : 'ítems'} por reponer
+            </h2>
+            <p>
+              Revisa críticos, registra una recepción o crea una solicitud de compra para recuperar el mínimo operativo.
+            </p>
+          </div>
+          <div className="inv-replenish-actions">
+            <Btn icon="receive" onClick={() => navigate('/recepcion')}>Registrar recepción</Btn>
+            <Btn variant="primary" icon="cart" onClick={() => navigate('/compras')}>Ir a abastecimiento</Btn>
+            <Btn icon="close" onClick={resetFilters}>Salir del filtro</Btn>
+          </div>
+        </section>
+      )}
+
       <InventoryOverview
         state={state}
-        rows={allRows}
+        rows={attentionMode ? rows : allRows}
         category={category}
+        focusAttention={attentionMode}
         onSelectCategory={(value) => updateParams({ linea: value, tipo: value === 'Insumos' ? 'raw' : value ? 'finished' : kind === 'all' ? '' : kind })}
         onSelectProduct={selectProduct}
         onFilterAttention={(nextKind) => updateParams({ tipo: nextKind, estado: 'attention', linea: '' })}
+        onReceive={receive}
+        onPurchase={purchase}
       />
 
+      {!attentionMode && (
       <div className="inv-category-nav" role="group" aria-label="Filtrar por línea">
         <button type="button" className={`inv-category ${!category ? 'is-active' : ''}`} aria-pressed={!category} onClick={() => updateParams({ linea: '' })}>
           <Icon name="layers" /> Todas las líneas <span>{allRows.length}</span>
@@ -224,9 +256,10 @@ export function InventoryWorkspace({ state, categories, toast }: {
           </button>
         ))}
       </div>
+      )}
 
       <div className={`inv-workspace ${selected ? 'has-selection' : ''}`}>
-        <section className="inv-browser" aria-labelledby="inv-products-heading">
+        <section ref={catalogRef} className="inv-browser" aria-labelledby="inv-products-heading">
           <div className="inv-browser-heading">
             <h2 id="inv-products-heading">Catálogo <span>{allRows.length}</span></h2>
             <div className="inv-search">
@@ -524,6 +557,7 @@ export function InventoryWorkspace({ state, categories, toast }: {
               onClose={() => setSelectedId(null)}
               onEdit={() => setEditProduct(selected.product.id)}
               onReceive={() => receive(selected.product.id)}
+              onPurchase={() => purchase(selected.product.id, selected.shortage || selected.product.min)}
               onLocate={(loc) => locate(selected.product.id, loc)}
               onTrace={() => navigate('/trazabilidad', { state: { q: selected.product.id } })}
               onSelectRelated={selectProduct}

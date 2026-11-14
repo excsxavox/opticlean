@@ -4,6 +4,9 @@ backend/data/
 data/
 *.log
 .DS_Store
+.env
+backend/.env
+**/.env
 
 *.tsbuildinfo
 ops-mobile/dist/

@@ -41,6 +41,8 @@ export type Client = {
   address: string;
   email: string;
   type: string;
+  city?: string;
+  sector?: string;
 };
 
 export type OrderLine = { productId: string; qty: number };

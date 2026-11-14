@@ -87,6 +87,65 @@
 .inv-page .inv-critical-empty { margin: 0; color: var(--inv-muted); font-size: 12px; }
 .inv-page .inv-critical-foot { display: flex; align-items: center; gap: 6px; margin: 12px 0 0; color: #9a6a20; font-size: 11px; }
 .inv-page .inv-critical-foot .icon { width: 14px; height: 14px; }
+.inv-page .inv-critical-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+.inv-page .inv-critical-actions button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 28px;
+  padding: 0 9px;
+  border-radius: 6px;
+  border: 1px solid #e5d0d4;
+  background: #fff;
+  color: #7a4550;
+  font-size: 10px;
+  font-weight: 600;
+}
+.inv-page .inv-critical-raw .inv-critical-actions button {
+  border-color: #ead7b4;
+  color: #8a6424;
+}
+.inv-page .inv-critical-actions .icon { width: 13px; height: 13px; }
+.inv-page .inv-replenish-banner {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: center;
+  margin-bottom: 12px;
+  padding: 16px 18px;
+  border-radius: 12px;
+  border: 1px solid #efdfbd;
+  background: linear-gradient(120deg, #fff8ea 0%, #fff 55%);
+}
+.inv-page .inv-replenish-banner h2 {
+  margin: 2px 0 6px;
+  font-size: 18px;
+  letter-spacing: -.3px;
+  color: #8a5a12;
+}
+.inv-page .inv-replenish-banner p {
+  margin: 0;
+  font-size: 12px;
+  color: #8d7350;
+  max-width: 520px;
+  line-height: 1.5;
+}
+.inv-page .inv-replenish-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+.inv-page .inv-overview--attention { margin-top: 2px; }
+@media (max-width: 900px) {
+  .inv-page .inv-replenish-banner { flex-direction: column; align-items: stretch; }
+  .inv-page .inv-replenish-actions { justify-content: flex-start; }
+}
 
 .inv-page .inv-kind-toggle { display: flex; flex-wrap: wrap; gap: 5px; }
 .inv-page .inv-kind-toggle button { border: 1px solid #d9e4ef; background: #fff; color: #567189; border-radius: 6px; padding: 6px 9px; display: flex; align-items: center; gap: 6px; font-size: 11px; min-height: 30px; }

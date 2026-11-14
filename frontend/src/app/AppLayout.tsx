@@ -17,7 +17,9 @@ const titles: Record<string, string> = {
   '/pedidos': 'Pedidos',
   '/pedidos/nuevo': 'Nuevo pedido',
   '/compras': 'Órdenes de compra',
-  '/logistica': 'Logística y distribución',
+  '/logistica': 'Distribución',
+  '/logistica/rutas': 'Mi ruta',
+  '/logistica/historial': 'Historial de rutas',
   '/clientes': 'Clientes',
   '/reportes': 'Reportes',
   '/configuracion': 'Configuración',
@@ -84,6 +86,8 @@ export function AppLayout() {
           {nav('/pedidos', 'Pedidos', 'orders', pending || '')}
           {nav('/compras', 'Abastecimiento', 'cart')}
           {nav('/logistica', 'Logística', 'truck')}
+          {nav('/logistica/rutas', 'Mi ruta', 'route')}
+          {nav('/logistica/historial', 'Historial rutas', 'history')}
         </nav>
         <div className="nav-heading spaced">Gestión</div>
         <nav className="nav">
@@ -150,7 +154,6 @@ export function AppLayout() {
               <Icon name="search" />
               <input name="query" placeholder="Buscar producto o código…" autoComplete="off" />
             </form>
-            <span className="demo-tag">DEMO INTERACTIVA</span>
             <span className="date-label">
               <Icon name="calendar" />
               27 oct. 2026

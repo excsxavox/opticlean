@@ -40,12 +40,14 @@
 .inv-detail-meter > span { display: block; height: 100%; border-radius: inherit; background: var(--inv-detail-tone); }
 .inv-detail .inv-detail-coverage { margin: 10px 0 0; display: flex; align-items: flex-start; gap: 6px; font-size: 12px; line-height: 1.55; color: var(--inv-detail-tone); }
 .inv-detail-coverage .icon { width: 15px; height: 17px; margin-top: 1px; }
-.inv-detail-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 20px; }
+.inv-detail-actions { display: grid; grid-template-columns: 1fr; gap: 8px; padding: 20px; }
 .inv-detail .inv-detail-action { display: flex; align-items: center; justify-content: center; gap: 6px; min-height: 40px; padding: 9px 8px; border: 1px solid #d8e3ef; border-radius: 7px; background: #fff; color: #355471; font-size: 12px; font-weight: 600; }
 .inv-detail-action .icon { width: 16px; height: 16px; }
 .inv-detail .inv-detail-action:hover:not(:disabled) { border-color: #9fc6ed; background: #f2f7fe; }
 .inv-detail .inv-detail-action-primary { background: #087af0; border-color: #087af0; color: #fff; }
 .inv-detail .inv-detail-action-primary:hover:not(:disabled) { background: #006bd7; border-color: #006bd7; }
+.inv-detail .inv-detail-action-buy { background: #fff8ea; border-color: #efdfbd; color: #8a5a12; }
+.inv-detail .inv-detail-action-buy:hover:not(:disabled) { background: #fff1d6; border-color: #e5cf9a; }
 .inv-detail-tabs { display: flex; gap: 18px; padding: 0 20px; border-bottom: 1px solid #e3ebf3; }
 .inv-detail-tabs > button { display: flex; align-items: center; gap: 7px; padding: 12px 0; min-height: 44px; border: 0; border-bottom: 2px solid transparent; background: transparent; color: #6c8095; font-size: 13px; font-weight: 600; }
 .inv-detail-tabs > button[aria-selected="true"] { color: #0874db; border-bottom-color: #087af0; }

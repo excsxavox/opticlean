@@ -4,11 +4,16 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { NextFunction, Request, Response } from 'express';
 
+/** admin | ops=bodega | dispatch=despacho | driver=conductor */
+export type AuthRole = 'admin' | 'ops' | 'dispatch' | 'driver';
+
 export type AuthUser = {
   id: string;
   email: string;
   name: string;
-  role: 'admin' | 'ops';
+  role: AuthRole;
+  /** Placa asignada al conductor */
+  truckPlate?: string;
   passwordHash: string;
 };
 
@@ -16,7 +21,8 @@ export type PublicUser = {
   id: string;
   email: string;
   name: string;
-  role: 'admin' | 'ops';
+  role: AuthRole;
+  truckPlate?: string;
 };
 
 type UsersFile = { version: 1; users: AuthUser[] };
@@ -75,6 +81,7 @@ function signToken(user: PublicUser) {
       email: user.email,
       name: user.name,
       role: user.role,
+      truckPlate: user.truckPlate,
       iat: now,
       exp: now + TOKEN_TTL_SEC,
     }),
@@ -97,59 +104,102 @@ export function verifyToken(token: string): PublicUser | null {
       sub: string;
       email: string;
       name: string;
-      role: 'admin' | 'ops';
+      role: AuthRole;
+      truckPlate?: string;
       exp: number;
     };
     if (!body.exp || body.exp * 1000 < Date.now()) return null;
-    return { id: body.sub, email: body.email, name: body.name, role: body.role };
+    return {
+      id: body.sub,
+      email: body.email,
+      name: body.name,
+      role: body.role,
+      truckPlate: body.truckPlate,
+    };
   } catch {
     return null;
   }
 }
 
 function toPublic(u: AuthUser): PublicUser {
-  return { id: u.id, email: u.email, name: u.name, role: u.role };
+  return {
+    id: u.id,
+    email: u.email,
+    name: u.name,
+    role: u.role,
+    truckPlate: u.truckPlate,
+  };
 }
 
-function defaultUsers(): AuthUser[] {
-  const adminEmail = (process.env.OPTICLEAN_ADMIN_EMAIL || 'admin@innovamf.com').toLowerCase();
-  const adminPass = process.env.OPTICLEAN_ADMIN_PASSWORD || 'OptiClean2026!';
-  const opsEmail = (process.env.OPTICLEAN_OPS_EMAIL || 'ops@innovamf.com').toLowerCase();
-  const opsPass = process.env.OPTICLEAN_OPS_PASSWORD || 'OptiClean2026!';
+function envPass(key: string, fallback: string) {
+  return process.env[key] || fallback;
+}
+
+function demoUsers(): AuthUser[] {
+  const pass = envPass('OPTICLEAN_DEMO_PASSWORD', 'OptiClean2026!');
+  const truckPlate = process.env.OPTICLEAN_DRIVER_TRUCK || 'GBA-2041';
   return [
     {
       id: 'U-ADMIN',
-      email: adminEmail,
+      email: (process.env.OPTICLEAN_ADMIN_EMAIL || 'admin@innovamf.com').toLowerCase(),
       name: 'Administración',
       role: 'admin',
-      passwordHash: hashPassword(adminPass),
+      passwordHash: hashPassword(envPass('OPTICLEAN_ADMIN_PASSWORD', pass)),
+    },
+    {
+      id: 'U-BODEGA',
+      email: (process.env.OPTICLEAN_BODEGA_EMAIL || 'bodega@innovamf.com').toLowerCase(),
+      name: 'Bodega piso',
+      role: 'ops',
+      passwordHash: hashPassword(envPass('OPTICLEAN_BODEGA_PASSWORD', pass)),
     },
     {
       id: 'U-OPS',
-      email: opsEmail,
-      name: 'Operaciones piso',
+      email: (process.env.OPTICLEAN_OPS_EMAIL || 'ops@innovamf.com').toLowerCase(),
+      name: 'Bodega (alias)',
       role: 'ops',
-      passwordHash: hashPassword(opsPass),
+      passwordHash: hashPassword(envPass('OPTICLEAN_OPS_PASSWORD', pass)),
+    },
+    {
+      id: 'U-DESPACHO',
+      email: (process.env.OPTICLEAN_DISPATCH_EMAIL || 'despacho@innovamf.com').toLowerCase(),
+      name: 'Despacho logística',
+      role: 'dispatch',
+      passwordHash: hashPassword(envPass('OPTICLEAN_DISPATCH_PASSWORD', pass)),
+    },
+    {
+      id: 'U-DRIVER',
+      email: (process.env.OPTICLEAN_DRIVER_EMAIL || 'conductor@innovamf.com').toLowerCase(),
+      name: 'Carlos Sur',
+      role: 'driver',
+      truckPlate,
+      passwordHash: hashPassword(envPass('OPTICLEAN_DRIVER_PASSWORD', pass)),
     },
   ];
 }
 
+/** Upsert usuarios demo por id (actualiza email/rol/placa/password demo). */
 function ensureUsers(): UsersFile {
   mkdirSync(DATA_DIR, { recursive: true });
-  if (!existsSync(USERS_PATH)) {
-    const seed: UsersFile = { version: 1, users: defaultUsers() };
-    writeFileSync(USERS_PATH, JSON.stringify(seed, null, 2));
-    return seed;
+  const desired = demoUsers();
+  let raw: UsersFile = { version: 1, users: [] };
+  if (existsSync(USERS_PATH)) {
+    try {
+      raw = JSON.parse(readFileSync(USERS_PATH, 'utf8')) as UsersFile;
+      if (!Array.isArray(raw.users)) raw = { version: 1, users: [] };
+    } catch {
+      raw = { version: 1, users: [] };
+    }
   }
-  try {
-    const raw = JSON.parse(readFileSync(USERS_PATH, 'utf8')) as UsersFile;
-    if (!raw?.users?.length) throw new Error('empty');
-    return raw;
-  } catch {
-    const seed: UsersFile = { version: 1, users: defaultUsers() };
-    writeFileSync(USERS_PATH, JSON.stringify(seed, null, 2));
-    return seed;
+
+  const byId = new Map(raw.users.map((u) => [u.id, u]));
+  for (const u of desired) {
+    // Usuarios demo siempre sincronizados desde .env
+    byId.set(u.id, u);
   }
+  const next: UsersFile = { version: 1, users: [...byId.values()] };
+  writeFileSync(USERS_PATH, JSON.stringify(next, null, 2));
+  return next;
 }
 
 export function login(email: string, password: string) {

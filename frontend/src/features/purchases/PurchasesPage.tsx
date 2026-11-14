@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useEffect, useMemo, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useAppState } from '../../shared/hooks/AppStateProvider';
 import { api } from '../../shared/api/client';
 import { product } from '../../shared/lib/inventory';
@@ -20,12 +20,23 @@ const confidenceLabel: Record<ConfidenceLevel, string> = {
 export function PurchasesPage() {
   const { state, applyResponse, toast } = useAppState();
   const navigate = useNavigate();
+  const location = useLocation();
   const [modalOpen, setModalOpen] = useState(false);
   const [prefillProduct, setPrefillProduct] = useState('');
   const [prefillQty, setPrefillQty] = useState(12);
   const [error, setError] = useState('');
 
   const forecast = useMemo(() => (state ? buildForecast(state) : null), [state]);
+
+  useEffect(() => {
+    const navState = location.state as { productId?: string; qty?: number } | null;
+    if (!navState?.productId || !state) return;
+    setPrefillProduct(navState.productId);
+    setPrefillQty(navState.qty ?? suggestedPurchaseQty(state, navState.productId));
+    setModalOpen(true);
+    setError('');
+    navigate(location.pathname, { replace: true, state: null });
+  }, [location.state, location.pathname, navigate, state]);
 
   if (!state || !forecast) return null;
 

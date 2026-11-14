@@ -1,7 +1,8 @@
 import { NavLink } from 'react-router-dom';
+import type { AuthRole } from '../auth';
 import { Icon } from './Icon';
 
-const tabs = [
+const warehouseTabs = [
   { to: '/', label: 'Inicio', icon: 'home', end: true },
   { to: '/inventario', label: 'Inventario', icon: 'box' },
   { to: '/recibir', label: 'Recibir', icon: 'receive', primary: true },
@@ -9,7 +10,25 @@ const tabs = [
   { to: '/bodega', label: 'Bodega', icon: 'warehouse' },
 ] as const;
 
-export function BottomNav({ pendingOrders = 0 }: { pendingOrders?: number }) {
+const dispatchTabs = [
+  { to: '/despacho', label: 'Despacho', icon: 'truck', primary: true, end: true },
+] as const;
+
+const driverTabs = [
+  { to: '/ruta', label: 'Mi ruta', icon: 'route', primary: true, end: true },
+  { to: '/historial', label: 'Historial', icon: 'history' },
+] as const;
+
+export function BottomNav({
+  role = 'ops',
+  pendingOrders = 0,
+}: {
+  role?: AuthRole;
+  pendingOrders?: number;
+}) {
+  const tabs =
+    role === 'driver' ? driverTabs : role === 'dispatch' ? dispatchTabs : warehouseTabs;
+
   return (
     <nav className="bottom-nav" aria-label="Navegación principal">
       {tabs.map((tab) => (

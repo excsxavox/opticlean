@@ -81,6 +81,10 @@ export type Client = {
   address: string;
   email: string;
   type: string;
+  /** Ciudad de entrega para agrupación logística */
+  city?: string;
+  /** Sector / barrio de entrega */
+  sector?: string;
 };
 
 export type OrderLine = { productId: string; qty: number };

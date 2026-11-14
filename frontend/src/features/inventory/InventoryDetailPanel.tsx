@@ -13,6 +13,7 @@ type InventoryDetailPanelProps = {
   onClose: () => void;
   onEdit: () => void;
   onReceive: () => void;
+  onPurchase: () => void;
   onLocate: (loc?: string) => void;
   onTrace: () => void;
   onSelectRelated: (id: string) => void;
@@ -42,7 +43,7 @@ function expiryLabel(expiry: string) {
 }
 
 export function InventoryDetailPanel({
-  state, row, onClose, onEdit, onReceive, onLocate, onTrace, onSelectRelated,
+  state, row, onClose, onEdit, onReceive, onPurchase, onLocate, onTrace, onSelectRelated,
 }: InventoryDetailPanelProps) {
   const [tab, setTab] = useState<DetailTab>('locations');
   const id = useId();
@@ -174,6 +175,11 @@ export function InventoryDetailPanel({
 
       <div className="inv-detail-actions">
         <button type="button" className="inv-detail-action inv-detail-action-primary" onClick={onReceive}><Icon name="receive" />Recibir stock</button>
+        {status !== 'healthy' && (
+          <button type="button" className="inv-detail-action inv-detail-action-buy" onClick={onPurchase}>
+            <Icon name="cart" />Solicitar compra
+          </button>
+        )}
         <button type="button" className="inv-detail-action" onClick={() => onLocate()} disabled={locations.length === 0}><Icon name="map" />Ver en bodega</button>
       </div>
 

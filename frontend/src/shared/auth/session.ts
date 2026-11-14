@@ -2,7 +2,8 @@ export type AuthUser = {
   id: string;
   email: string;
   name: string;
-  role: 'admin' | 'ops';
+  role: 'admin' | 'ops' | 'dispatch' | 'driver';
+  truckPlate?: string;
 };
 
 const TOKEN_KEY = 'opticlean.auth.token';

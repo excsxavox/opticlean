@@ -55,6 +55,48 @@ export const api = {
     }),
   move: (body: { productId: string; qty: number; from: string; to: string; batch?: string }) =>
     request<{ state: AppState }>('/api/moves', { method: 'POST', body: JSON.stringify(body) }),
+  delivery: (body: { orderId: string; person: string; notes?: string }) =>
+    request<{ state: AppState }>('/api/delivery', { method: 'POST', body: JSON.stringify(body) }),
+  incident: (body: { orderId: string; reason: string; notes?: string }) =>
+    request<{ state: AppState }>('/api/incidents', { method: 'POST', body: JSON.stringify(body) }),
+  dispatch: (orderIds: string[], vehicle?: string) =>
+    request<{ state: AppState }>('/api/dispatch', {
+      method: 'POST',
+      body: JSON.stringify({ orderIds, vehicle }),
+    }),
+  logisticsAutoAssign: (body: {
+    orderIds?: string[];
+    stagedByTruck?: Record<string, string[]>;
+    fleet?: Array<{
+      id: string;
+      plate: string;
+      label: string;
+      city: string;
+      driver: string;
+      maxKg: number;
+      maxM3: number;
+      costPerKm: number;
+    }>;
+  }) =>
+    request<{
+      openai: boolean;
+      plan: {
+        assignments: Array<{
+          orderId: string;
+          truckId: string;
+          plate: string;
+          truckLabel: string;
+          city: string;
+          kg: number;
+          m3: number;
+          reason: string;
+        }>;
+        byTruck: Record<string, string[]>;
+        unassigned: Array<{ orderId: string; kg: number; m3: number; city: string; reason: string }>;
+        summary: string;
+        source: 'openai' | 'heuristic';
+      };
+    }>('/api/logistics/auto-assign', { method: 'POST', body: JSON.stringify(body) }),
 };
 
 export function findProduct(products: Product[], code: string) {

@@ -11,6 +11,8 @@ import { OrdersPage } from '../features/orders/OrdersPage';
 import { NewOrderPage } from '../features/orders/NewOrderPage';
 import { PurchasesPage } from '../features/purchases/PurchasesPage';
 import { LogisticsPage } from '../features/logistics/LogisticsPage';
+import { RoutesPage } from '../features/logistics/RoutesPage';
+import { RouteHistoryPage } from '../features/logistics/RouteHistoryPage';
 import { ClientsPage } from '../features/clients/ClientsPage';
 import { TraceabilityPage } from '../features/traceability/TraceabilityPage';
 import { ReportsPage } from '../features/reports/ReportsPage';
@@ -58,6 +60,8 @@ function ProtectedApp() {
         <Route path="pedidos/nuevo" element={<NewOrderPage />} />
         <Route path="compras" element={<PurchasesPage />} />
         <Route path="logistica" element={<LogisticsPage />} />
+        <Route path="logistica/rutas" element={<RoutesPage />} />
+        <Route path="logistica/historial" element={<RouteHistoryPage />} />
         <Route path="clientes" element={<ClientsPage />} />
         <Route path="trazabilidad" element={<TraceabilityPage />} />
         <Route path="reportes" element={<ReportsPage />} />

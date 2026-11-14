@@ -1,8 +1,11 @@
+export type AuthRole = 'admin' | 'ops' | 'dispatch' | 'driver';
+
 export type AuthUser = {
   id: string;
   email: string;
   name: string;
-  role: 'admin' | 'ops';
+  role: AuthRole;
+  truckPlate?: string;
 };
 
 const TOKEN_KEY = 'opticlean.ops.auth.token';
@@ -29,4 +32,23 @@ export function setSession(token: string, user: AuthUser) {
 export function clearSession() {
   localStorage.removeItem(TOKEN_KEY);
   localStorage.removeItem(USER_KEY);
+}
+
+export function isDriver(user: AuthUser | null | undefined) {
+  return user?.role === 'driver';
+}
+
+export function isDispatch(user: AuthUser | null | undefined) {
+  return user?.role === 'dispatch';
+}
+
+/** Bodega en piso (ops) o admin */
+export function isWarehouseRole(user: AuthUser | null | undefined) {
+  return user?.role === 'ops' || user?.role === 'admin';
+}
+
+export function homePathForRole(role: AuthRole) {
+  if (role === 'driver') return '/ruta';
+  if (role === 'dispatch') return '/despacho';
+  return '/';
 }

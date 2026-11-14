@@ -22,6 +22,10 @@ const iconPaths: Record<string, string> = {
     '<circle cx="6" cy="5" r="2"/><circle cx="18" cy="19" r="2"/><path d="M6 7v6a3 3 0 0 0 3 3h6m3 1V8a3 3 0 0 0-3-3h-3"/>',
   refresh: '<path d="M3 9a9 9 0 0 1 15-5l3 3M21 3v4h-4M21 15A9 9 0 0 1 6 20l-3-3m0 4v-4h4"/>',
   chevron: '<path d="m9 5 7 7-7 7"/>',
+  pin: '<path d="M20 10c0 6-8 12-8 12S4 16 4 10a8 8 0 1 1 16 0Z"/><circle cx="12" cy="10" r="2.5"/>',
+  history: '<path d="M3 4v5h5M3 9a9 9 0 1 1 0 7M12 7v5l3 2"/>',
+  calendar:
+    '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M7 3v4m10-4v4M3 11h18"/>',
 };
 
 export function Icon({ name, className = '' }: { name: string; className?: string }) {

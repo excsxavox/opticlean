@@ -99,4 +99,37 @@ export const api = {
     }>(
       `/api/placement?productId=${encodeURIComponent(productId)}&qty=${qty}&exclude=${encodeURIComponent(exclude)}`,
     ),
+  logisticsAutoAssign: (body: {
+    orderIds?: string[];
+    stagedByTruck?: Record<string, string[]>;
+    fleet?: Array<{
+      id: string;
+      plate: string;
+      label: string;
+      city: string;
+      driver: string;
+      maxKg: number;
+      maxM3: number;
+      costPerKm: number;
+    }>;
+  }) =>
+    request<{
+      openai: boolean;
+      plan: {
+        assignments: Array<{
+          orderId: string;
+          truckId: string;
+          plate: string;
+          truckLabel: string;
+          city: string;
+          kg: number;
+          m3: number;
+          reason: string;
+        }>;
+        byTruck: Record<string, string[]>;
+        unassigned: Array<{ orderId: string; kg: number; m3: number; city: string; reason: string }>;
+        summary: string;
+        source: 'openai' | 'heuristic';
+      };
+    }>('/api/logistics/auto-assign', { method: 'POST', body: JSON.stringify(body) }),
 };

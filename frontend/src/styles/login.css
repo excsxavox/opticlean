@@ -6,8 +6,8 @@
 }
 .login-aside {
   background:
-    radial-gradient(ellipse at 20% 10%, #0d4f86 0%, transparent 45%),
-    linear-gradient(160deg, #062344 0%, #0a355c 55%, #0b4a78 100%);
+    linear-gradient(160deg, #041526bf 0%, #06234499 40%, #06234466 100%),
+    url('/login-bg.jpg') center / cover no-repeat #062344;
   color: #d7e7f6;
   padding: 36px 42px;
   display: flex;
@@ -52,17 +52,18 @@
   max-width: 380px;
   font-size: 13px;
   line-height: 1.7;
-  color: #9bb6cf;
+  color: #c5d8ea;
 }
 .login-foot {
   margin: 0;
   font-size: 11px;
-  color: #7a99b6;
+  color: #9bb6cf;
 }
 .login-panel {
   display: grid;
   place-items: center;
   padding: 28px 22px;
+  background: #f4f7fb;
 }
 .login-form {
   width: min(100%, 360px);
@@ -145,7 +146,7 @@
 @media (max-width: 860px) {
   .login-shell { grid-template-columns: 1fr; }
   .login-aside {
-    min-height: auto;
+    min-height: 220px;
     padding: 24px 20px 20px;
   }
   .login-aside h1 { font-size: 26px; }

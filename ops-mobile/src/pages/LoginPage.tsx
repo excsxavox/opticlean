@@ -2,7 +2,7 @@ import { FormEvent, useState } from 'react';
 import { Navigate } from 'react-router-dom';
 import { api } from '../api';
 import { Logo } from '../components/Icon';
-import { setSession, type AuthUser } from '../auth';
+import { homePathForRole, setSession, type AuthUser } from '../auth';
 
 type Props = {
   user: AuthUser | null;
@@ -14,7 +14,7 @@ export function LoginPage({ user, onLogin }: Props) {
   const [busy, setBusy] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
-  if (user) return <Navigate to="/" replace />;
+  if (user) return <Navigate to={homePathForRole(user.role)} replace />;
 
   async function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -41,15 +41,21 @@ export function LoginPage({ user, onLogin }: Props) {
             <strong>
               OPTI<span>CLEAN</span> <em>Ops</em>
             </strong>
-            <small>Bodega en piso</small>
+            <small>Bodega · Despacho · Conductor</small>
           </div>
         </div>
         <h1>Iniciar sesión</h1>
-        <p className="subtle">Entra para operar recepción, pedidos y bodega.</p>
+        <p className="subtle">Cada rol abre su propia interfaz móvil.</p>
         <form onSubmit={onSubmit} autoComplete="on">
           <label className="field">
             <span>Correo</span>
-            <input name="email" type="email" required autoComplete="username" placeholder="ops@innovamf.com" />
+            <input
+              name="email"
+              type="email"
+              required
+              autoComplete="username"
+              placeholder="bodega@ / despacho@ / conductor@"
+            />
           </label>
           <label className="field">
             <span>Contraseña</span>
@@ -72,6 +78,15 @@ export function LoginPage({ user, onLogin }: Props) {
             {busy ? 'Entrando…' : 'Entrar'}
           </button>
         </form>
+        <p className="login-hint">
+          Bodega: <code>bodega@innovamf.com</code>
+          <br />
+          Despacho: <code>despacho@innovamf.com</code>
+          <br />
+          Conductor: <code>conductor@innovamf.com</code>
+          <br />
+          Clave: <code>OptiClean2026!</code>
+        </p>
       </div>
     </div>
   );

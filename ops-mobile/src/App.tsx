@@ -1,9 +1,21 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { api } from './api';
-import { clearSession, getStoredUser, getToken, type AuthUser } from './auth';
+import {
+  clearSession,
+  getStoredUser,
+  getToken,
+  homePathForRole,
+  isDispatch,
+  isDriver,
+  isWarehouseRole,
+  type AuthUser,
+} from './auth';
 import { BottomNav } from './components/BottomNav';
 import type { AppState } from './types';
+import { DispatchPage } from './pages/DispatchPage';
+import { DriverHistoryPage } from './pages/DriverHistoryPage';
+import { DriverRoutePage } from './pages/DriverRoutePage';
 import { HomePage } from './pages/HomePage';
 import { InventoryPage } from './pages/InventoryPage';
 import { LoginPage } from './pages/LoginPage';
@@ -108,22 +120,56 @@ export function App() {
 
   if (!state) return null;
 
+  const driver = isDriver(user);
+  const dispatch = isDispatch(user);
+  const warehouse = isWarehouseRole(user);
   const pending = state.orders.filter((o) => o.status === 'Por preparar').length;
+  const home = homePathForRole(user.role);
+  const appClass = driver ? 'app-driver' : dispatch ? 'app-dispatch' : 'app-ops';
 
   return (
-    <div className="app">
+    <div className={`app ${appClass}`}>
       <main className="app-main">
         <Routes>
-          <Route path="/" element={<HomePage state={state} />} />
-          <Route path="/inventario" element={<InventoryPage state={state} />} />
-          <Route path="/recibir" element={<ReceivePage state={state} onRefresh={refresh} />} />
-          <Route path="/pedidos" element={<OrdersPage state={state} onRefresh={refresh} />} />
-          <Route path="/bodega" element={<WarehousePage state={state} />} />
-          <Route path="/login" element={<Navigate to="/" replace />} />
-          <Route path="*" element={<Navigate to="/" replace />} />
+          {driver ? (
+            <>
+              <Route
+                path="/ruta"
+                element={<DriverRoutePage state={state} user={user} onRefresh={refresh} />}
+              />
+              <Route path="/historial" element={<DriverHistoryPage state={state} user={user} />} />
+              <Route path="/" element={<Navigate to="/ruta" replace />} />
+              <Route path="/login" element={<Navigate to="/ruta" replace />} />
+              <Route path="*" element={<Navigate to="/ruta" replace />} />
+            </>
+          ) : dispatch ? (
+            <>
+              <Route
+                path="/despacho"
+                element={<DispatchPage state={state} user={user} onRefresh={refresh} />}
+              />
+              <Route path="/" element={<Navigate to="/despacho" replace />} />
+              <Route path="/login" element={<Navigate to="/despacho" replace />} />
+              <Route path="*" element={<Navigate to="/despacho" replace />} />
+            </>
+          ) : warehouse ? (
+            <>
+              <Route path="/" element={<HomePage state={state} />} />
+              <Route path="/inventario" element={<InventoryPage state={state} />} />
+              <Route path="/recibir" element={<ReceivePage state={state} onRefresh={refresh} />} />
+              <Route path="/pedidos" element={<OrdersPage state={state} onRefresh={refresh} />} />
+              <Route path="/bodega" element={<WarehousePage state={state} />} />
+              <Route path="/ruta" element={<Navigate to="/" replace />} />
+              <Route path="/despacho" element={<Navigate to="/" replace />} />
+              <Route path="/login" element={<Navigate to={home} replace />} />
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </>
+          ) : (
+            <Route path="*" element={<Navigate to="/login" replace />} />
+          )}
         </Routes>
       </main>
-      <BottomNav pendingOrders={pending} />
+      <BottomNav role={user.role} pendingOrders={pending} />
     </div>
   );
 }

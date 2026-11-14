@@ -1,9 +1,34 @@
 import cors from 'cors';
 import express from 'express';
+import { existsSync, readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { JsonStateRepository } from '../persistence/JsonStateRepository.js';
 import { OperationsUseCases } from '../../application/use-cases/OperationsUseCases.js';
 import { suggest, suggestPlacement } from '../../domain/placement.service.js';
+import { autoAssignLogistics, openaiConfigured } from '../../domain/logistics-ai.service.js';
 import { authRequired, login, publicUserFromRequest } from '../auth/auth.js';
+
+/** Carga backend/.env sin dependencia extra (no pisa vars ya definidas, p.ej. systemd). */
+function loadEnvFile() {
+  const path = resolve(process.cwd(), '.env');
+  if (!existsSync(path)) return;
+  for (const raw of readFileSync(path, 'utf8').split(/\r?\n/)) {
+    const line = raw.trim();
+    if (!line || line.startsWith('#')) continue;
+    const i = line.indexOf('=');
+    if (i <= 0) continue;
+    const key = line.slice(0, i).trim();
+    let val = line.slice(i + 1).trim();
+    if (
+      (val.startsWith('"') && val.endsWith('"')) ||
+      (val.startsWith("'") && val.endsWith("'"))
+    ) {
+      val = val.slice(1, -1);
+    }
+    if (process.env[key] === undefined) process.env[key] = val;
+  }
+}
+loadEnvFile();
 
 const app = express();
 const repo = new JsonStateRepository();
@@ -171,6 +196,42 @@ app.post('/api/dispatch', async (req, res, next) => {
   } catch (e) {
     next(e);
   }
+});
+
+app.post('/api/logistics/auto-assign', authRequired, async (req, res, next) => {
+  try {
+    const state = await ops.getState();
+    const body = (req.body ?? {}) as {
+      orderIds?: string[];
+      stagedByTruck?: Record<string, string[]>;
+      fleet?: Array<{
+        id: string;
+        plate: string;
+        label: string;
+        city: string;
+        driver: string;
+        maxKg: number;
+        maxM3: number;
+        costPerKm: number;
+      }>;
+    };
+    const plan = await autoAssignLogistics({
+      state,
+      orderIds: body.orderIds,
+      stagedByTruck: body.stagedByTruck,
+      fleet: body.fleet,
+    });
+    res.json({ plan, openai: openaiConfigured() });
+  } catch (e) {
+    next(e);
+  }
+});
+
+app.get('/api/logistics/ai-status', authRequired, (_req, res) => {
+  res.json({
+    openai: openaiConfigured(),
+    model: process.env.OPENAI_MODEL || process.env.OPENAI_CHAT_MODEL || 'gpt-4o-mini',
+  });
 });
 
 app.post('/api/delivery', async (req, res, next) => {
