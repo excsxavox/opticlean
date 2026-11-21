@@ -19,7 +19,7 @@ import {
 type Ctx = {
   user: AuthUser | null;
   loading: boolean;
-  login: (email: string, password: string) => Promise<void>;
+  login: (email: string, password: string) => Promise<AuthUser>;
   logout: () => void;
 };
 
@@ -62,6 +62,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const res = await api.login(email, password);
     setSession(res.token, res.user);
     setUser(res.user);
+    return res.user;
   }, []);
 
   const logout = useCallback(() => {

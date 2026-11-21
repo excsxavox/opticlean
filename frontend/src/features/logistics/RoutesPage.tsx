@@ -91,6 +91,7 @@ export function RoutesPage() {
           orderId: current.id,
           person: String(data.person),
           notes: String(data.notes ?? ''),
+          code: String(data.code ?? ''),
         }),
       );
       toast(`Entrega de ${current.id} confirmada.`);
@@ -349,6 +350,22 @@ export function RoutesPage() {
                   >
                     Incidencia
                   </Btn>
+                  <Btn
+                    variant="ghost"
+                    disabled={!!current.skipped}
+                    onClick={() => {
+                      setError('');
+                      void api
+                        .skipStop(current.id)
+                        .then((response) => {
+                          applyResponse(response);
+                          toast(`${current.id} quedó fuera de la ruta. Las paradas que siguen se reordenaron.`);
+                        })
+                        .catch((err) => setError(err instanceof Error ? err.message : 'No se pudo saltar la parada.'));
+                    }}
+                  >
+                    Saltar y reordenar
+                  </Btn>
                 </div>
               </div>
             </>
@@ -394,6 +411,19 @@ export function RoutesPage() {
                 defaultValue={currentClient?.contact}
               />
             </div>
+            <div className="field">
+              <label htmlFor="route-code">Código que dicta el cliente</label>
+              <input id="route-code" name="code" inputMode="numeric" autoComplete="off" required={!!current.deliveryCode} />
+            </div>
+            {current.deliveryKey ? (
+              <p className="subtle">
+                El cliente lo ve en{' '}
+                <a href={`/entrega?orderId=${encodeURIComponent(current.id)}&k=${encodeURIComponent(current.deliveryKey)}`}>
+                  su enlace
+                </a>
+                .
+              </p>
+            ) : null}
             <div className="field">
               <label htmlFor="route-notes">Observaciones</label>
               <textarea id="route-notes" name="notes" />

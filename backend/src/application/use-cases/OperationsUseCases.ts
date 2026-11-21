@@ -27,7 +27,6 @@ import {
   stock,
   upsertProduct,
 } from '../../domain/inventory.service.js';
-import { uid } from '../../domain/inventory.service.js';
 import {
   applyParsedInvoice,
   parseFacturaXml,
@@ -51,9 +50,11 @@ import {
   cancelPurchase,
   closePurchase,
   createBackorderPurchases,
+  createClient,
   createPurchase,
   promoteWaitingOrders,
   receivePurchase,
+  updateClient as saveClientProfile,
 } from '../../domain/commerce.service.js';
 import { addEvent } from '../../domain/inventory.service.js';
 import { commitImport, previewCsv, previewXlsx, previewXml, type ImportKind } from '../../domain/import-docs.service.js';
@@ -80,6 +81,21 @@ import {
   suggestReplenishment,
 } from '../../domain/commercial.service.js';
 import { deleteVehicle as removeFleetVehicle, upsertVehicle } from '../../domain/fleet.service.js';
+import {
+  approvePlan,
+  createQuote,
+  customerDeliveryCode,
+  discardPlan,
+  loadPreview,
+  loseQuote,
+  packOrder,
+  planView,
+  removeOffering,
+  saveOffering,
+  skipAndReoptimize,
+  undoPlan,
+  winQuote,
+} from '../../domain/outbound.service.js';
 import type { Vehicle } from '../../domain/types.js';
 
 export const BUNDLES = [
@@ -398,9 +414,9 @@ export class OperationsUseCases {
     });
   }
 
-  async delivery(orderId: string, person: string, notes?: string) {
+  async delivery(orderId: string, person: string, notes?: string, code?: string) {
     return this.mutate((s) => {
-      confirmDelivery(s, orderId, person, notes);
+      confirmDelivery(s, orderId, person, notes, code);
     });
   }
 
@@ -418,14 +434,11 @@ export class OperationsUseCases {
       const requested = Number(body.creditLimit);
       const creditLimit = admin && body.creditLimit != null && Number.isFinite(requested) && requested >= 0 ? requested : fallback;
       const terms = Number(body.paymentTermsDays);
-      const { creditLimit: _limit, paymentTermsDays: _terms, ...rest } = body;
-      const created: Client = {
-        ...rest,
-        id: uid('CL'),
-        creditLimit,
-        ...(admin && body.paymentTermsDays != null && Number.isInteger(terms) && terms >= 0 ? { paymentTermsDays: terms } : {}),
-      };
-      s.clients.push(created);
+      const created = createClient(s, body);
+      created.creditLimit = creditLimit;
+      if (admin && body.paymentTermsDays != null && Number.isInteger(terms) && terms >= 0) {
+        created.paymentTermsDays = terms;
+      }
       recordChange(s, { entity: 'Cliente', entityId: created.id, entityName: created.name, field: 'Cupo de crédito', from: undefined, to: creditLimit });
       if (created.paymentTermsDays != null) {
         recordChange(s, { entity: 'Cliente', entityId: created.id, entityName: created.name, field: 'Plazo de pago (días)', from: undefined, to: created.paymentTermsDays });
@@ -438,15 +451,7 @@ export class OperationsUseCases {
     body: Partial<Omit<Client, 'id'>> & { creditLimit?: number | string; paymentTermsDays?: number | string },
   ) {
     return this.mutate((s) => {
-      const c = s.clients.find((x) => x.id === id);
-      if (!c) throw new Error('Cliente no encontrado.');
-      if (body.name !== undefined) c.name = String(body.name).trim() || c.name;
-      if (body.contact !== undefined) c.contact = String(body.contact).trim() || c.contact;
-      if (body.address !== undefined) c.address = String(body.address).trim() || c.address;
-      if (body.email !== undefined) c.email = String(body.email).trim() || c.email;
-      if (body.type !== undefined) c.type = String(body.type).trim() || c.type;
-      if (body.city !== undefined) c.city = String(body.city).trim();
-      if (body.sector !== undefined) c.sector = String(body.sector).trim();
+      const c = saveClientProfile(s, id, body);
       if ((body.creditLimit !== undefined || body.paymentTermsDays !== undefined) && !actorIsAdmin()) {
         throw new Error('Solo administración cambia el cupo o el plazo de crédito.');
       }
@@ -652,6 +657,81 @@ export class OperationsUseCases {
   async recall(batch: string) {
     const state = await this.repo.load();
     return recallBatch(state, batch);
+  }
+
+  async plan() {
+    const state = await this.repo.load();
+    return planView(state);
+  }
+
+  async approvePlan(id: string) {
+    return this.mutate((s) => {
+      approvePlan(s, id);
+    });
+  }
+
+  async discardPlan(id: string, note?: string) {
+    return this.mutate((s) => {
+      discardPlan(s, id, note);
+    });
+  }
+
+  async undoPlan(id: string) {
+    return this.mutate((s) => {
+      undoPlan(s, id);
+    });
+  }
+
+  async addQuote(body: Parameters<typeof createQuote>[1]) {
+    return this.mutate((s) => {
+      createQuote(s, body);
+    });
+  }
+
+  async winQuote(id: string) {
+    return this.mutate((s) => {
+      winQuote(s, id);
+    });
+  }
+
+  async loseQuote(id: string) {
+    return this.mutate((s) => {
+      loseQuote(s, id);
+    });
+  }
+
+  async pack(orderId: string, weightKg: number, volumeM3: number) {
+    return this.mutate((s) => {
+      packOrder(s, orderId, weightKg, volumeM3);
+    });
+  }
+
+  async previewLoad(plate: string, orderIds: string[]) {
+    const state = await this.repo.load();
+    return loadPreview(state, plate, orderIds);
+  }
+
+  async skipStop(orderId: string) {
+    return this.mutate((s) => {
+      skipAndReoptimize(s, orderId);
+    });
+  }
+
+  async addOffering(body: Parameters<typeof saveOffering>[1]) {
+    return this.mutate((s) => {
+      saveOffering(s, body);
+    });
+  }
+
+  async deleteOffering(id: string) {
+    return this.mutate((s) => {
+      removeOffering(s, id);
+    });
+  }
+
+  async deliveryCode(orderId: string, key: string) {
+    const state = await this.repo.load();
+    return customerDeliveryCode(state, orderId, key);
   }
 
   /** Consultas derivadas para asistente / KPIs */

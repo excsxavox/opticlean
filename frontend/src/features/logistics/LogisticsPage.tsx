@@ -324,6 +324,7 @@ export function LogisticsPage() {
           orderId: String(data.orderId),
           person: String(data.person),
           notes: String(data.notes ?? ''),
+          code: String(data.code ?? ''),
         }),
       );
       toast('Entrega confirmada.');
@@ -1126,6 +1127,10 @@ export function LogisticsPage() {
             <div className="field">
               <label htmlFor="delivery-person">Quien recibe</label>
               <input id="delivery-person" name="person" required />
+            </div>
+            <div className="field">
+              <label htmlFor="delivery-code">Código que dicta el cliente</label>
+              <input id="delivery-code" name="code" inputMode="numeric" autoComplete="off" />
             </div>
             <div className="field">
               <label htmlFor="delivery-notes">Observaciones</label>

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAppState } from '../../shared/hooks/AppStateProvider';
 import { money, num } from '../../shared/lib/inventory';
 import { exportEvents, exportInventory, exportLocations, exportReport } from '../../shared/lib/csv';
+import { downloadReport } from '../../shared/api/client';
 import { Btn, Kpi, KpiGrid, PageHead } from '../../shared/components/ui';
 import { Icon } from '../../shared/components/Icon';
 import { buildReportsSnapshot, type ReportPeriod, type ReportTab } from './reportsModel';
@@ -147,6 +148,12 @@ export function ReportsPage() {
           <>
             <Btn icon="download" onClick={exportActive}>
               Exportar activo
+            </Btn>
+            <Btn icon="file" onClick={() => void downloadReport('traceability', 'xlsx').catch((err) => toast(err instanceof Error ? err.message : 'No se pudo descargar.'))}>
+              Trazabilidad Excel
+            </Btn>
+            <Btn icon="file" onClick={() => void downloadReport('diagnostics', 'pdf').catch((err) => toast(err instanceof Error ? err.message : 'No se pudo descargar.'))}>
+              Diagnóstico PDF
             </Btn>
             <Btn icon="file" onClick={() => window.print()}>
               Imprimir

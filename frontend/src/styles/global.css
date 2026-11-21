@@ -2545,3 +2545,32 @@ td .sub {
     break-inside: avoid;
   }
 }
+
+/* Tooltip compartido (shared/components/Tooltip.tsx), por encima de modales. */
+.ui-tooltip {
+  position: fixed;
+  z-index: 200;
+  max-width: 300px;
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  background: var(--slate-900);
+  color: var(--slate-0);
+  font-size: var(--text-md);
+  line-height: var(--leading-normal);
+  box-shadow: 0 10px 30px -10px color-mix(in srgb, var(--slate-950) 60%, transparent);
+  pointer-events: none;
+}
+.ui-tooltip b {
+  display: block;
+  margin-bottom: 3px;
+  font-weight: var(--weight-semibold);
+}
+.ui-tooltip ul {
+  margin: 4px 0 0;
+  padding-left: 16px;
+}
+.ui-tooltip-note {
+  display: block;
+  margin-top: 6px;
+  color: var(--slate-300);
+}

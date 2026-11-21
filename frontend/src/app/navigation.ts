@@ -28,11 +28,16 @@ export const routeMeta: Record<string, RouteMeta> = {
   '/familias': { title: 'Familias' },
   '/pedidos': { title: 'Pedidos' },
   '/pedidos/nuevo': { title: 'Nuevo pedido', parent: '/pedidos' },
+  '/cotizaciones': { title: 'Cotizaciones' },
+  '/empaque': { title: 'Empaque' },
+  '/plan': { title: 'Plan de mañana' },
+  '/entrega': { title: 'Código de entrega' },
   '/compras': { title: 'Abastecimiento' },
   '/logistica': { title: 'Logística' },
   '/logistica/rutas': { title: 'Mi ruta', parent: '/logistica' },
   '/logistica/historial': { title: 'Historial de rutas', parent: '/logistica' },
   '/clientes': { title: 'Clientes' },
+  '/proveedores': { title: 'Proveedores' },
   '/comercial': { title: 'Comercial' },
   '/trazabilidad': { title: 'Trazabilidad' },
   '/reportes': { title: 'Reportes' },
@@ -41,7 +46,7 @@ export const routeMeta: Record<string, RouteMeta> = {
   '/configuracion': { title: 'Configuración' },
 };
 
-/** Menú usado si la API de menú no responde. */
+/** Menú usado si la API de menú no responde. Sigue el mismo recorrido que la semilla. */
 export const fallbackMenu: MenuSection[] = [
   {
     section: 'Operación',
@@ -49,9 +54,29 @@ export const fallbackMenu: MenuSection[] = [
       { id: 'f-home', label: 'Inicio', path: '/', icon: 'home', badge: null },
       { id: 'f-inv', label: 'Inventario', path: '/inventario', icon: 'box', badge: null },
       { id: 'f-rec', label: 'Recepción', path: '/recepcion', icon: 'receive', badge: null },
-      { id: 'f-bod', label: 'Bodega visual', path: '/bodega', icon: 'warehouse', badge: 'NUEVO' },
+      { id: 'f-quote', label: 'Cotizaciones', path: '/cotizaciones', icon: 'file', badge: null },
       { id: 'f-ped', label: 'Pedidos', path: '/pedidos', icon: 'orders', badge: null },
+      { id: 'f-pack', label: 'Empaque', path: '/empaque', icon: 'cube', badge: null },
       { id: 'f-log', label: 'Logística', path: '/logistica', icon: 'truck', badge: null },
+      { id: 'f-route', label: 'Mi ruta', path: '/logistica/rutas', icon: 'route', badge: null },
+      { id: 'f-hist', label: 'Historial rutas', path: '/logistica/historial', icon: 'history', badge: null },
+      { id: 'f-trace', label: 'Trazabilidad', path: '/trazabilidad', icon: 'route', badge: null },
+    ],
+  },
+  {
+    section: 'Abastecimiento',
+    items: [
+      { id: 'f-plan', label: 'Plan de mañana', path: '/plan', icon: 'calendar', badge: null },
+      { id: 'f-buy', label: 'Abastecimiento', path: '/compras', icon: 'cart', badge: null },
+      { id: 'f-sup', label: 'Proveedores', path: '/proveedores', icon: 'building', badge: null },
+    ],
+  },
+  {
+    section: 'Bodega',
+    items: [
+      { id: 'f-wh', label: 'Bodegas', path: '/bodegas', icon: 'building', badge: null },
+      { id: 'f-bod', label: 'Bodega visual', path: '/bodega', icon: 'warehouse', badge: null },
+      { id: 'f-fam', label: 'Familias', path: '/familias', icon: 'layers', badge: null },
     ],
   },
   {
@@ -59,15 +84,10 @@ export const fallbackMenu: MenuSection[] = [
     items: [
       { id: 'f-cli', label: 'Clientes', path: '/clientes', icon: 'users', badge: null },
       { id: 'f-com', label: 'Comercial', path: '/comercial', icon: 'orders', badge: null },
+      { id: 'f-rep', label: 'Reportes', path: '/reportes', icon: 'chart', badge: null },
       { id: 'f-rules', label: 'Reglas de negocio', path: '/reglas', icon: 'shield', badge: null },
       { id: 'f-users', label: 'Usuarios', path: '/usuarios', icon: 'users', badge: null },
-      {
-        id: 'f-cfg',
-        label: 'Configuración',
-        path: '/configuracion',
-        icon: 'settings',
-        badge: null,
-      },
+      { id: 'f-cfg', label: 'Configuración', path: '/configuracion', icon: 'settings', badge: null },
     ],
   },
 ];
@@ -106,4 +126,36 @@ export function breadcrumbsFor(path: string, menu: MenuSection[]): Crumb[] {
   if (parentPath) chain.push({ label: titleFor(parentPath, menu), to: parentPath });
   chain.push({ label: titleFor(path, menu) });
   return chain;
+}
+
+const ROLE_PATHS: Record<string, readonly string[]> = {
+  ops: ['/', '/inventario', '/recepcion', '/bodega', '/bodegas', '/familias', '/pedidos', '/cotizaciones', '/compras', '/plan', '/empaque', '/proveedores', '/trazabilidad'],
+  dispatch: ['/', '/pedidos', '/clientes', '/logistica', '/empaque', '/logistica/rutas', '/logistica/historial', '/trazabilidad'],
+  driver: ['/logistica/rutas', '/logistica/historial'],
+};
+
+/** Pantalla de entrada según el puesto. Administración abre el resumen. */
+export function homeForRole(role?: string) {
+  if (role === 'driver') return '/logistica/rutas';
+  if (role === 'dispatch') return '/logistica';
+  if (role === 'ops') return '/bodega';
+  return '/';
+}
+
+/** El menú muestra solo lo que ese rol puede operar. Administración ve todo. */
+export function menuForRole(sections: MenuSection[], role?: string): MenuSection[] {
+  const allow = role ? ROLE_PATHS[role] : undefined;
+  if (!allow) return sections;
+  return sections
+    .map((section) => ({
+      ...section,
+      items: section.items.filter((item) => allow.includes(item.path)),
+    }))
+    .filter((section) => section.items.length > 0);
+}
+
+export function roleAllowsPath(role: string | undefined, path: string) {
+  const allow = role ? ROLE_PATHS[role] : undefined;
+  if (!allow) return true;
+  return allow.some((item) => path === item || (item !== '/' && path.startsWith(`${item}/`)));
 }

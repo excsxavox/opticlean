@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { seed } from '../src/domain/seed.js';
-import { available, createOrder, prepare, receive, stock } from '../src/domain/inventory.service.js';
+import { available, createOrder, dispatch, prepare, receive, stock } from '../src/domain/inventory.service.js';
 import { createPurchase } from '../src/domain/commerce.service.js';
 import { createSupplier } from '../src/domain/suppliers.service.js';
 import { suggest } from '../src/domain/placement.service.js';
@@ -166,10 +166,47 @@ test('La reposición agrupa por proveedor y el retiro encuentra al cliente', () 
   const purchases = createSuggestedPurchases(s);
   assert.ok(purchases.some((purchase) => purchase.supplierId === supplier.id));
 
+  const parent = s.products.find((item) => item.id === 'P018');
+  const component = parent?.components?.find((item) => item.productId === 'MP-CLORO');
+  const child = s.products.find((item) => item.id === 'MP-CLORO');
+  assert.ok(parent && component && child);
+  child.supplierId = supplier.id;
+  child.min = 0;
+  const parentAvail = available(s, parent.id);
+  const childAvail = available(s, child.id);
+  const short = Math.max(2, Math.ceil((childAvail + 1) / component.qty));
+  parent.min = parentAvail + short;
+  const bomGap = component.qty * short - childAvail;
+  const suggested = suggestReplenishment(s);
+  const bomLine = suggested.flatMap((group) => group.lines).find((line) => line.productId === child.id && line.reason.includes('BOM'));
+  assert.ok(bomLine);
+  assert.ok(bomLine.packQty * bomLine.unitsPerPack >= bomGap);
+
   const sellable = sellableProduct(s);
   const order = createOrder(s, { clientId: 'CL002', lines: [{ productId: sellable.id, qty: 1 }] });
   prepare(s, order.id);
   const batch = order.picks?.[0]?.batch ?? '';
   const recall = recallBatch(s, batch);
   assert.ok(recall.clients.some((row) => row.orderId === order.id && row.clientId === 'CL002'));
+});
+
+test('La factura copia el lote picado y el despacho emite una sola guía', () => {
+  const s = seed();
+  const item = sellableProduct(s);
+  const order = createOrder(s, { clientId: 'CL001', lines: [{ productId: item.id, qty: 1 }] });
+  prepare(s, order.id);
+  const picks = order.picks ?? [];
+  order.picks = [];
+  assert.throws(() => issueInvoice(s, order.id), /lote de salida/);
+  order.picks = picks;
+  const invoice = issueInvoice(s, order.id);
+  assert.equal(invoice.lines[0].batch, order.picks?.[0]?.batch);
+  assert.ok(invoice.lines[0].batch);
+  dispatch(s, [order.id], 'GBA-2041');
+  const guides = (s.guides ?? []).filter((guide) => guide.orderId === order.id && guide.status === 'Emitida');
+  assert.equal(guides.length, 1);
+  assert.equal(guides[0].lines[0].batch, order.picks?.[0]?.batch);
+  const again = issueGuide(s, { orderId: order.id });
+  assert.equal(again.id, guides[0].id);
+  assert.equal((s.guides ?? []).filter((guide) => guide.orderId === order.id).length, 1);
 });

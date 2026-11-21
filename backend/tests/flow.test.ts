@@ -104,7 +104,8 @@ test('Flujo completo: OC → recepción → pedido → picking FEFO → factura 
   assert.ok((invoice.lines[0].unitCost ?? 0) > 0, 'la factura guarda el costo para el margen');
 
   dispatch(s, [order.id], 'GBA-2041');
-  confirmDelivery(s, order.id, 'María Torres');
+  assert.match(order.deliveryCode ?? '', /^\d{6}$/);
+  confirmDelivery(s, order.id, 'María Torres', undefined, order.deliveryCode);
   registerCustomerPayment(s, { invoiceId: invoice.id, amount: invoice.total, method: 'Transferencia', reference: 'T-1' });
   assert.equal(order.status, 'Entregado');
 

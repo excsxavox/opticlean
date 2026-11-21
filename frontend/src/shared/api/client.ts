@@ -1,4 +1,4 @@
-import type { AppState, Location, Meta, Metrics } from '../types';
+import type { AppState, Location, Meta, Metrics, PlanAction } from '../types';
 import { clearSession, getToken, type AuthUser } from '../auth/session';
 
 type StateResponse = { state: AppState; metrics: Metrics };
@@ -35,6 +35,25 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   }
   if (!res.ok) throw new Error((data as { error?: string }).error ?? res.statusText);
   return data as T;
+}
+
+export async function downloadReport(kind: 'traceability' | 'diagnostics', format: 'xlsx' | 'pdf') {
+  const headers: Record<string, string> = {};
+  const token = getToken();
+  if (token) headers.Authorization = `Bearer ${token}`;
+  const res = await fetch(`/api/reports/${kind}?format=${format}`, { headers });
+  if (!res.ok) {
+    const data = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(data.error ?? 'No se pudo descargar el informe.');
+  }
+  const blob = await res.blob();
+  const match = /filename="([^"]+)"/.exec(res.headers.get('Content-Disposition') ?? '');
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = match?.[1] ?? `OPTICLEAN_${kind}.${format}`;
+  link.click();
+  URL.revokeObjectURL(url);
 }
 
 export const api = {
@@ -173,8 +192,10 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ orderIds, vehicle }),
     }),
-  delivery: (body: { orderId: string; person: string; notes?: string }) =>
+  delivery: (body: { orderId: string; person: string; notes?: string; code?: string }) =>
     request<StateResponse>('/api/delivery', { method: 'POST', body: JSON.stringify(body) }),
+  skipStop: (orderId: string) =>
+    request<StateResponse>('/api/delivery/skip', { method: 'POST', body: JSON.stringify({ orderId }) }),
   incident: (body: { orderId: string; reason: string; notes?: string }) =>
     request<StateResponse>('/api/incidents', { method: 'POST', body: JSON.stringify(body) }),
   addClient: (body: Record<string, unknown>) =>
@@ -216,6 +237,11 @@ export const api = {
     }),
   addSupplier: (body: Record<string, unknown>) =>
     request<StateResponse>('/api/suppliers', { method: 'POST', body: JSON.stringify(body) }),
+  updateSupplier: (id: string, body: Record<string, unknown>) =>
+    request<StateResponse>(`/api/suppliers/${encodeURIComponent(id)}`, {
+      method: 'PATCH',
+      body: JSON.stringify(body),
+    }),
   saveBundle: (body: Record<string, unknown>) =>
     request<StateResponse>('/api/bundles', { method: 'POST', body: JSON.stringify(body) }),
   assembleBundle: (id: string, body: Record<string, unknown>) =>
@@ -460,7 +486,7 @@ export const api = {
     }>('/api/logistics/auto-assign', { method: 'POST', body: JSON.stringify(body) }),
   issueInvoice: (orderId: string) =>
     request<StateResponse>('/api/invoices', { method: 'POST', body: JSON.stringify({ orderId }) }),
-  issueCreditNote: (body: { invoiceId: string; reason: string; lines: Array<{ productId: string; qty: number; restock?: boolean }> }) =>
+  issueCreditNote: (body: { invoiceId: string; reason: string; lines: Array<{ productId: string; qty: number; batch?: string; restock?: boolean }> }) =>
     request<StateResponse>('/api/credit-notes', { method: 'POST', body: JSON.stringify(body) }),
   issueGuide: (body: { orderId?: string; transferId?: string }) =>
     request<StateResponse>('/api/guides', { method: 'POST', body: JSON.stringify(body) }),
@@ -499,7 +525,7 @@ export const api = {
         supplierId: string;
         supplierName: string;
         leadTimeDays: number;
-        lines: Array<{ productId: string; name: string; gap: number; packCode: string; packQty: number; unitsPerPack: number; unitPrice: number }>;
+        lines: Array<{ productId: string; name: string; gap: number; packCode: string; packQty: number; unitsPerPack: number; unitPrice: number; reason: string }>;
       }>;
     }>('/api/replenishment'),
   createReplenishment: () => request<StateResponse>('/api/replenishment', { method: 'POST' }),
@@ -509,4 +535,55 @@ export const api = {
       clients: Array<{ orderId: string; clientId: string; clientName: string; productId: string; qty: number; date: string; status: string }>;
       stock: Array<{ lotId: string; productId: string; qty: number; loc: string; warehouseId: string; expiry: string }>;
     }>(`/api/recall?batch=${encodeURIComponent(batch)}`),
+  plan: () =>
+    request<{
+      actions: PlanAction[];
+      forecast: Array<{
+        clientId: string;
+        name: string;
+        weeklyUnits: number;
+        orders: number;
+        confidence: number;
+        deviationPct: number;
+        reorderEveryDays: number | null;
+      }>;
+      diagnostics: Array<{ orderId: string; clientId: string; hours: number; late: boolean; incident: string }>;
+    }>('/api/plan'),
+  approvePlan: (id: string) =>
+    request<StateResponse>(`/api/plan/${encodeURIComponent(id)}/approve`, { method: 'POST' }),
+  discardPlan: (id: string, note: string) =>
+    request<StateResponse>(`/api/plan/${encodeURIComponent(id)}/discard`, {
+      method: 'POST',
+      body: JSON.stringify({ note }),
+    }),
+  undoPlan: (id: string) => request<StateResponse>(`/api/plan/${encodeURIComponent(id)}/undo`, { method: 'POST' }),
+  addQuote: (body: Record<string, unknown>) =>
+    request<StateResponse>('/api/quotes', { method: 'POST', body: JSON.stringify(body) }),
+  winQuote: (id: string) => request<StateResponse>(`/api/quotes/${encodeURIComponent(id)}/win`, { method: 'POST' }),
+  loseQuote: (id: string) => request<StateResponse>(`/api/quotes/${encodeURIComponent(id)}/lose`, { method: 'POST' }),
+  packOrder: (body: { orderId: string; weightKg: number; volumeM3: number }) =>
+    request<StateResponse>('/api/packing', { method: 'POST', body: JSON.stringify(body) }),
+  previewLoad: (plate: string, orderIds: string[]) =>
+    request<{
+      plate: string;
+      kg: number;
+      m3: number;
+      fill: number;
+      underMin: boolean;
+      over: boolean;
+      loadSequence: string[];
+      trip: { km: number; allIn: number; fuel: number; fuelUnits: number; fuelType: string | null };
+    }>('/api/loading/preview', { method: 'POST', body: JSON.stringify({ plate, orderIds }) }),
+  addOffering: (body: Record<string, unknown>) =>
+    request<StateResponse>('/api/offerings', { method: 'POST', body: JSON.stringify(body) }),
+  deleteOffering: (id: string) =>
+    request<StateResponse>(`/api/offerings/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+  readLabel: (text: string) =>
+    request<{
+      name: string;
+      presentations: string[];
+      hazardous: boolean;
+      warnings: string[];
+      attributes: Array<{ name: string; value: string }>;
+    }>('/api/products/read-label', { method: 'POST', body: JSON.stringify({ text }) }),
 };

@@ -12,10 +12,12 @@ function clean(body: Partial<Supplier>, current?: Supplier): Supplier {
   if (!Number.isInteger(lead) || lead < 0) throw new Error('El tiempo de entrega debe ser un entero de días.');
   const email = (body.email ?? current?.email ?? '').trim();
   if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new Error('El correo del proveedor no es válido.');
+  const taxId = String(body.taxId ?? current?.taxId ?? '').replace(/\D/g, '');
+  if (!/^\d{13}$/.test(taxId)) throw new Error('El RUC del proveedor debe tener 13 dígitos.');
   return {
     id: current?.id ?? '',
     name,
-    taxId: String(body.taxId ?? current?.taxId ?? '').replace(/\s/g, ''),
+    taxId,
     contact: (body.contact ?? current?.contact ?? '').trim(),
     email,
     phone: (body.phone ?? current?.phone ?? '').trim(),
@@ -31,6 +33,9 @@ export function createSupplier(s: AppState, body: Partial<Supplier>) {
   if (suppliers.some((supplier) => supplier.name.toLowerCase() === data.name.toLowerCase())) {
     throw new Error('Ya existe un proveedor con ese nombre.');
   }
+  if (suppliers.some((supplier) => supplier.taxId === data.taxId)) {
+    throw new Error('Ya existe un proveedor con ese RUC.');
+  }
   const n = suppliers.reduce((max, supplier) => Math.max(max, Number(supplier.id.replace(/\D/g, '')) || 0), 0) + 1;
   const created: Supplier = { ...data, id: `PR-${String(n).padStart(3, '0')}` };
   suppliers.push(created);
@@ -44,6 +49,9 @@ export function updateSupplier(s: AppState, id: string, body: Partial<Supplier>)
   const data = clean({ ...current, ...body }, current);
   if (suppliers.some((supplier) => supplier.id !== id && supplier.name.toLowerCase() === data.name.toLowerCase())) {
     throw new Error('Ya existe un proveedor con ese nombre.');
+  }
+  if (suppliers.some((supplier) => supplier.id !== id && supplier.taxId === data.taxId)) {
+    throw new Error('Ya existe un proveedor con ese RUC.');
   }
   Object.assign(current, data, { id });
   return current;

@@ -83,7 +83,7 @@ test('Bodega no cambia precio, costo ni IVA; administración sí y queda en el h
 test('Cupo y plazo de crédito: solo administración, con historial', async () => {
   const repo = memoryRepo(migrateState(seed()));
   const ops = new OperationsUseCases(repo);
-  const base = { name: 'Nuevo', contact: 'X', address: 'Y', email: 'n@x.ec', type: 'Retail' };
+  const base = { name: 'Nuevo', contact: 'X', address: 'Y', email: 'n@x.ec', type: 'Retail', taxId: '1790000099001' };
 
   await runAs(bodega, () => ops.addClient({ ...base, creditLimit: 1_000_000, paymentTermsDays: 365 }));
   const byOps = repo.state.clients.at(-1)!;

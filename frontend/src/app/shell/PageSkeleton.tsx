@@ -13,6 +13,10 @@ function variantForPath(path: string): SkeletonVariant {
     return 'form';
   if (
     path.startsWith('/clientes') ||
+    path.startsWith('/proveedores') ||
+    path.startsWith('/cotizaciones') ||
+    path.startsWith('/empaque') ||
+    path.startsWith('/plan') ||
     path.startsWith('/bodegas') ||
     path.startsWith('/logistica') ||
     path.startsWith('/inventario') ||

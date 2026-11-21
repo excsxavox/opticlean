@@ -5,6 +5,7 @@ import { DEFAULT_LAYOUT, toDelanteraLocId } from './warehouse-layout.js';
 import { defaultFamilies } from './families.service.js';
 import { defaultVehicles } from './fleet.service.js';
 import { DEFAULT_BUNDLES } from './bundles.service.js';
+import { linkOpeningReceipts } from './opening-stock.js';
 
 const QUITO_LAYOUT = { ...DEFAULT_LAYOUT, depthFaces: 2 as const };
 
@@ -42,6 +43,14 @@ function buildDemandHistory(): AppState['orders'] {
         priority: 'Normal',
         deliveredAt: `${date}T16:${String(10 + i * 7).padStart(2, '0')}:00Z`,
         deliveredTo: 'Recepción cliente',
+        picks: [
+          {
+            productId,
+            qty: baseQty + ((week + i) % 4),
+            batch: `H-${productId}-W${week}${i}`,
+            loc: 'HIST',
+          },
+        ],
       });
     }
   }
@@ -165,10 +174,23 @@ export function seed(): AppState {
     P061: [{ productId: 'MP-TENSIO', qty: 2 }, { productId: 'MP-BASE', qty: 1 }],
   };
 
-  const products = [
+  const products: AppState['products'] = [
     ...finished.map((p) => ({ ...p, components: bom[p.id] ?? [] })),
     ...rawMaterials,
   ];
+
+  const withoutExpiry = new Set(['P012', 'P025', 'P078', 'MP-NITRILO']);
+  const sanitaryById: Record<string, { sanitaryRegistration: string; sanitaryExpires: string }> = {
+    P008: { sanitaryRegistration: 'NSO-EC-008-2026', sanitaryExpires: '2027-12-31' },
+    P018: { sanitaryRegistration: 'NSO-EC-018-2026', sanitaryExpires: '2027-12-31' },
+    P045: { sanitaryRegistration: 'NSO-EC-045-2026', sanitaryExpires: '2027-12-31' },
+    P052: { sanitaryRegistration: 'NSO-EC-052-2026', sanitaryExpires: '2027-12-31' },
+  };
+  for (const item of products) {
+    if (withoutExpiry.has(item.id)) item.perishable = false;
+    const sanitary = sanitaryById[item.id];
+    if (sanitary) Object.assign(item, sanitary, { requiresSanitary: true });
+  }
 
   const lots: AppState['lots'] = [];
   const finishedOnly = products.filter((p) => p.kind !== 'raw');
@@ -376,6 +398,10 @@ export function seed(): AppState {
     },
   ];
 
+  for (const [index, client] of clients.entries()) {
+    client.taxId = `17900000${String(index + 1).padStart(3, '0')}01`;
+  }
+
   /**
    * Demo Distribución (limpia):
    * - Pendientes (Por preparar): 4
@@ -529,6 +555,10 @@ export function seed(): AppState {
       ],
       priority: 'Normal',
       vehicle: 'GBA-2041',
+      picks: [
+        { productId: 'P001', qty: 10, batch: 'L-MUL-01', loc: 'A-02-01-D' },
+        { productId: 'P025', qty: 6, batch: 'L-TOA-01', loc: 'D-01-02-D' },
+      ],
     },
     {
       id: 'PED-012',
@@ -538,6 +568,7 @@ export function seed(): AppState {
       lines: [{ productId: 'P032', qty: 8 }],
       priority: 'Normal',
       vehicle: 'GBA-2041',
+      picks: [{ productId: 'P032', qty: 8, batch: 'L-PIS-01', loc: 'A-01-02-D' }],
     },
     {
       id: 'PED-013',
@@ -550,6 +581,10 @@ export function seed(): AppState {
       ],
       priority: 'Alta',
       vehicle: 'GYE-1188',
+      picks: [
+        { productId: 'P018', qty: 10, batch: 'L-CLO-01', loc: 'C-01-01-D' },
+        { productId: 'P061', qty: 6, batch: 'L-DET-01', loc: 'C-02-01-D' },
+      ],
     },
     {
       id: 'PED-014',
@@ -562,6 +597,10 @@ export function seed(): AppState {
       ],
       priority: 'Normal',
       vehicle: 'GYE-1188',
+      picks: [
+        { productId: 'P008', qty: 12, batch: 'L-DES-02', loc: 'B-01-01-D' },
+        { productId: 'P052', qty: 10, batch: 'L-GUA-01', loc: 'B-02-01-D' },
+      ],
     },
     {
       id: 'PED-015',
@@ -574,6 +613,10 @@ export function seed(): AppState {
       ],
       priority: 'Normal',
       vehicle: 'CUE-3301',
+      picks: [
+        { productId: 'P012', qty: 20, batch: 'L-PAP-01', loc: 'D-01-01-D' },
+        { productId: 'P025', qty: 15, batch: 'L-TOA-01', loc: 'D-01-02-D' },
+      ],
     },
     {
       id: 'PED-016',
@@ -587,6 +630,11 @@ export function seed(): AppState {
       ],
       priority: 'Alta',
       vehicle: 'AMB-5520',
+      picks: [
+        { productId: 'P008', qty: 10, batch: 'L-DES-02', loc: 'B-01-01-D' },
+        { productId: 'P045', qty: 8, batch: 'L-JAB-01', loc: 'B-01-02-D' },
+        { productId: 'P052', qty: 6, batch: 'L-GUA-01', loc: 'B-02-01-D' },
+      ],
     },
 
     // Entregado reciente (historial / Mi ruta)
@@ -603,6 +651,10 @@ export function seed(): AppState {
       vehicle: 'GBA-2041',
       deliveredAt: '2026-10-26T18:10:00Z',
       deliveredTo: 'María Torres',
+      picks: [
+        { productId: 'P001', qty: 10, batch: 'L-MUL-01', loc: 'A-02-01-D' },
+        { productId: 'P025', qty: 6, batch: 'L-TOA-01', loc: 'D-01-02-D' },
+      ],
     },
     // Historial para que el modelo de previsión aprenda demanda real
     ...buildDemandHistory(),
@@ -645,7 +697,7 @@ export function seed(): AppState {
     ...buildDispatchHistory(),
   ];
 
-  return {
+  const state: AppState = {
     version: 2,
     demo: true,
     products,
@@ -658,17 +710,7 @@ export function seed(): AppState {
     families: defaultFamilies(),
     vehicles: defaultVehicles(),
     bundles: DEFAULT_BUNDLES.map((b) => ({ ...b, lines: b.lines.map((l) => ({ ...l })) })),
-    receipts: [
-      {
-        id: 'REC-0083',
-        supplier: 'Química Andina',
-        date: '2026-10-27',
-        productId: 'P001',
-        qty: 24,
-        loc: 'A-02-01-D',
-        batch: 'LT-26025',
-      },
-    ],
+    receipts: [],
     settings: {
       company: 'OPTICLEAN AI',
       warehouse: 'Bodega principal · Quito',
@@ -676,4 +718,9 @@ export function seed(): AppState {
       activeWarehouseId: DEFAULT_WAREHOUSE_ID,
     },
   };
+  linkOpeningReceipts(state);
+  const opening = state.receipts.find((r) => r.productId === 'P001');
+  const reception = state.events.find((e) => e.id === 'ev-3');
+  if (reception && opening) reception.ref = opening.id;
+  return state;
 }

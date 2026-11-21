@@ -54,7 +54,7 @@ export function SettingsPage() {
       <PageHead
         eyebrow="Administración"
         title="Configuración"
-        desc="Personaliza el entorno de demostración."
+        desc="Datos de la empresa y de la bodega activa."
       />
       <div className="two-col">
         <form className="panel" id="settings-form" onSubmit={(e) => void save(e)}>

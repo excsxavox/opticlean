@@ -1,8 +1,23 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { api } from '../../shared/api/client';
 import { Btn } from '../../shared/components/ui';
+import { Icon } from '../../shared/components/Icon';
 import { Modal } from '../../shared/components/Modal';
+import { TooltipButton } from '../../shared/components/Tooltip';
+import { money, num } from '../../shared/lib/inventory';
+import { FileDropZone, type FileDropStatus } from '../../shared/components/FileDrop';
 import { useAppState } from '../../shared/hooks/AppStateProvider';
+import {
+  IMPORT_FORMATS,
+  IMPORT_REJECTED,
+  extOf,
+  fileToBase64,
+  findFormat,
+  type FileMeta,
+  type FileRoute,
+} from '../../shared/lib/fileFormats';
+import { indexImportWarnings } from './importWarnings';
+import '../../styles/imports.css';
 
 type ImportKind = 'purchase' | 'sale';
 
@@ -29,6 +44,14 @@ type Preview = {
   rows: Row[];
 };
 
+const MAX_SIZE_MB = 10;
+const AI_STEPS = ['Preparando archivo', 'Leyendo con IA'];
+const PREVIEW_STEPS = ['Leyendo archivo', 'Preparando líneas'];
+
+type RowTone = 'ok' | 'info' | 'warn' | 'err';
+type RowFilter = 'all' | 'err' | 'info';
+type RowView = { tone: RowTone; label: string; title: string; detail: string; action?: string; extra: string[] };
+
 export function ImportDialog({
   kind,
   onClose,
@@ -40,29 +63,101 @@ export function ImportDialog({
 }) {
   const { applyResponse } = useAppState();
   const [preview, setPreview] = useState<Preview | null>(null);
+  const [file, setFile] = useState<FileMeta | null>(null);
+  const [route, setRoute] = useState<FileRoute | null>(null);
+  const [status, setStatus] = useState<FileDropStatus>('idle');
+  const [step, setStep] = useState(0);
+  const [fileError, setFileError] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
 
-  const readFile = async (file: File) => {
-    const name = file.name.toLowerCase();
-    const isAiDoc =
-      name.endsWith('.pdf') ||
-      name.endsWith('.docx') ||
-      (name.endsWith('.doc') && !name.endsWith('.docx'));
-    if (isAiDoc) {
-      if (name.endsWith('.doc') && !name.endsWith('.docx')) {
-        setError('El .doc antiguo no está soportado. Usa .docx, PDF, XML, CSV o Excel.');
-        return;
-      }
-      setBusy(true);
-      setError('');
-      setPreview(null);
+  const party = kind === 'purchase' ? 'Proveedor' : 'Cliente';
+  const [filter, setFilter] = useState<RowFilter>('all');
+  const issues = useMemo(
+    () => (preview ? indexImportWarnings(preview.warnings, preview.rows.map((row) => row.code)) : null),
+    [preview],
+  );
+
+  const viewOf = (row: Row): RowView => {
+    const found = issues?.byCode.get(row.code);
+    const extra = found?.messages ?? [];
+    if (row.status === 'invalid') {
+      return {
+        tone: 'err',
+        label: 'Inválida',
+        title: 'Esta línea no se importará',
+        detail: row.message || 'Le faltan datos obligatorios.',
+        action: 'Corrige el archivo y vuelve a cargarlo si necesitas esta línea.',
+        extra,
+      };
+    }
+    if (found?.noStock) {
+      return {
+        tone: 'err',
+        label: 'Sin stock',
+        title: 'No hay stock suficiente',
+        detail: `Pide ${num(row.qty)} ${row.packCode || 'u.'} y no hay suficiente disponible. El pedido no se creará hasta que entre mercadería.`,
+        action: 'Registra la recepción primero o quita esta línea del archivo.',
+        extra,
+      };
+    }
+    if (row.status === 'new') {
+      return {
+        tone: 'info',
+        label: 'Nuevo',
+        title: 'Producto nuevo',
+        detail: 'No está en el catálogo. Se creará con los datos del archivo al confirmar.',
+        extra,
+      };
+    }
+    if (extra.length) {
+      return { tone: 'warn', label: 'Revisar', title: 'Revisa esta línea', detail: extra[0], extra: extra.slice(1) };
+    }
+    return { tone: 'ok', label: 'Existe', title: '', detail: '', extra };
+  };
+
+  const views = preview?.rows.map(viewOf) ?? [];
+  const blocked = kind === 'sale' ? views.filter((view) => view.label === 'Sin stock').length : 0;
+  const errCount = views.filter((view) => view.tone === 'err').length;
+  const infoCount = views.filter((view) => view.tone === 'info').length;
+  const importable = preview?.rows.filter((row) => row.status !== 'invalid' && row.qty > 0) ?? [];
+  const units = importable.reduce((sum, row) => sum + row.qty, 0);
+  const total = importable.reduce((sum, row) => sum + row.qty * (row.unitPrice || 0), 0);
+  const createLabel = kind === 'sale' ? 'Crear pedido' : 'Crear compra';
+
+  const reset = () => {
+    setFilter('all');
+    setFile(null);
+    setRoute(null);
+    setPreview(null);
+    setStatus('idle');
+    setFileError('');
+    setError('');
+  };
+
+  const fail = (message: string) => {
+    setStatus('error');
+    setFileError(message);
+  };
+
+  const readFile = async (picked: File) => {
+    const format = findFormat(IMPORT_FORMATS, picked.name);
+    const nextRoute = format?.route ?? 'preview';
+    setFile({ name: picked.name, size: picked.size });
+    setRoute(nextRoute);
+    setPreview(null);
+    setFilter('all');
+    setError('');
+    setFileError('');
+    setStatus('reading');
+    setStep(0);
+    setBusy(true);
+
+    if (nextRoute === 'ai') {
       try {
-        const res = await api.importOrderFile({
-          fileName: file.name,
-          mimeType: file.type,
-          contentBase64: await fileToBase64(file),
-        });
+        const contentBase64 = await fileToBase64(picked);
+        setStep(1);
+        const res = await api.importOrderFile({ fileName: picked.name, mimeType: picked.type, contentBase64 });
         applyResponse(res);
         const created = res.import.productsCreated.length;
         const updated = res.import.productsUpdated.length;
@@ -77,41 +172,33 @@ export function ImportDialog({
           `${res.import.orderId} · IA · ${clientMsg}${prodMsg ? ` · ${prodMsg}` : ''} · ${res.import.invoice.docNumber}`,
         );
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'No se pudo leer el documento con IA.');
+        fail(err instanceof Error ? err.message : 'No se pudo leer el documento con IA.');
       } finally {
         setBusy(false);
       }
       return;
     }
 
-    const format = name.endsWith('.xml')
-      ? 'xml'
-      : name.endsWith('.csv') || name.endsWith('.txt')
-        ? 'csv'
-        : 'xlsx';
-    if (!/\.(xml|csv|txt|xlsx|xls)$/.test(name)) {
-      setError('Usa un archivo XML, PDF, Word (.docx), CSV o Excel.');
-      return;
-    }
-    setBusy(true);
-    setError('');
+    const ext = extOf(picked.name);
+    const fmt = ext === 'xml' ? 'xml' : ext === 'csv' || ext === 'txt' ? 'csv' : 'xlsx';
     try {
       const body =
-        format === 'xlsx'
-          ? { kind, format, base64: await fileToBase64(file) }
-          : { kind, format, text: await file.text() };
+        fmt === 'xlsx'
+          ? { kind, format: fmt, base64: await fileToBase64(picked) }
+          : { kind, format: fmt, text: await picked.text() };
+      setStep(1);
       const next = await api.previewImport(body);
       setPreview(next);
+      setStatus('ready');
     } catch (err) {
-      setPreview(null);
-      setError(err instanceof Error ? err.message : 'No se pudo leer el archivo.');
+      fail(err instanceof Error ? err.message : 'No se pudo leer el archivo.');
     } finally {
       setBusy(false);
     }
   };
 
   const commit = async () => {
-    if (!preview || busy) return;
+    if (!preview || busy || blocked) return;
     const rows = preview.rows.filter((row) => row.status !== 'invalid' && row.qty > 0);
     if (!rows.length) {
       setError('No hay líneas válidas para confirmar.');
@@ -146,121 +233,202 @@ export function ImportDialog({
     }
   };
 
+  const lines = preview?.rows.length ?? 0;
+  const summary = preview
+    ? `${lines} ${lines === 1 ? 'línea' : 'líneas'}${preview.partyName ? ` · ${preview.partyName}` : ''}`
+    : undefined;
+
   return (
     <Modal
       title={kind === 'purchase' ? 'Importar compra' : 'Importar pedido'}
-      subtitle="PDF, Word, XML, CSV o Excel. La IA lee PDF/Word; CSV/Excel pasan por vista previa."
+      subtitle="PDF y Word se leen con IA. XML, CSV y Excel pasan por una vista previa antes de confirmar."
       onClose={onClose}
       footer={
         <>
+          {blocked ? (
+            <span className="import-blocked" role="status">
+              <Icon name="alert" />
+              {blocked === 1 ? '1 línea sin stock' : `${blocked} líneas sin stock`}: no se puede crear el pedido.
+            </span>
+          ) : null}
           <Btn onClick={onClose}>Cancelar</Btn>
-          <Btn variant="primary" icon="save" disabled={!preview || busy} onClick={() => void commit()}>
-            {busy ? 'Importando…' : 'Confirmar'}
+          <Btn variant="primary" icon="save" disabled={!preview || busy || blocked > 0} onClick={() => void commit()}>
+            {busy && preview ? 'Creando…' : createLabel}
           </Btn>
         </>
       }
     >
-      <div className="form-grid">
-        <div className="field full">
-          <label htmlFor="import-file">Archivo</label>
-          <input
-            id="import-file"
-            type="file"
-            accept=".xml,.pdf,.docx,.csv,.txt,.xlsx,.xls,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-            onChange={(event) => {
-              const file = event.target.files?.[0];
-              if (file) void readFile(file);
-            }}
-          />
-        </div>
-        {preview ? (
-          <>
-            <div className="field">
-              <label htmlFor="import-party">{kind === 'purchase' ? 'Proveedor' : 'Cliente'}</label>
-              <input
-                id="import-party"
-                value={preview.partyName}
-                onChange={(event) => setPreview({ ...preview, partyName: event.target.value })}
-              />
-            </div>
-            <div className="field">
-              <label htmlFor="import-doc">Documento</label>
-              <input
-                id="import-doc"
-                value={preview.docNumber}
-                onChange={(event) => setPreview({ ...preview, docNumber: event.target.value })}
-              />
-            </div>
-          </>
-        ) : null}
-      </div>
-      {preview?.warnings.length ? (
-        <div className="form-error visible" style={{ marginTop: 12 }}>
-          {preview.warnings.slice(0, 4).map((warning) => (
-            <p key={warning}>{warning}</p>
-          ))}
+      <FileDropZone
+        id="import-file"
+        formats={IMPORT_FORMATS}
+        rejected={IMPORT_REJECTED}
+        maxSizeMb={MAX_SIZE_MB}
+        status={status}
+        file={file}
+        route={route}
+        steps={route === 'ai' ? AI_STEPS : PREVIEW_STEPS}
+        step={step}
+        summary={summary}
+        error={fileError}
+        onFiles={([picked]) => void readFile(picked)}
+        onReject={(message, rejectedFile) => {
+          setFile({ name: rejectedFile.name, size: rejectedFile.size });
+          setRoute(null);
+          setPreview(null);
+          fail(message);
+        }}
+        onClear={reset}
+      />
+
+      {preview ? (
+        <div className="form-grid import-party">
+          <div className="field">
+            <label htmlFor="import-party">{party}</label>
+            <input
+              id="import-party"
+              value={preview.partyName}
+              onChange={(event) => setPreview({ ...preview, partyName: event.target.value })}
+            />
+          </div>
+          <div className="field">
+            <label htmlFor="import-doc">Documento</label>
+            <input
+              id="import-doc"
+              value={preview.docNumber}
+              onChange={(event) => setPreview({ ...preview, docNumber: event.target.value })}
+            />
+          </div>
         </div>
       ) : null}
-      {preview ? (
-        <div className="table-scroll" style={{ marginTop: 12 }}>
-          <table>
-            <thead>
-              <tr>
-                <th>Producto</th>
-                <th>Cantidad</th>
-                <th>Empaque</th>
-                <th>Caducidad</th>
-                <th>Estado</th>
-              </tr>
-            </thead>
-            <tbody>
-              {preview.rows.map((row, index) => (
-                <tr key={`${row.code}-${index}`}>
-                  <td>
-                    <strong>{row.name}</strong>
-                    <span className="sub">{row.code}</span>
-                  </td>
-                  <td>{row.qty}</td>
-                  <td>{row.packCode}</td>
-                  <td>
-                    <input
-                      aria-label={`Caducidad de ${row.code}`}
-                      type="date"
-                      value={row.expiry}
-                      onChange={(event) => {
-                        const rows = preview.rows.map((item, i) =>
-                          i === index ? { ...item, expiry: event.target.value } : item,
-                        );
-                        setPreview({ ...preview, rows });
-                      }}
-                    />
-                  </td>
-                  <td>{row.status === 'matched' ? 'Existe' : row.status === 'new' ? 'Nuevo' : 'Inválido'}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+
+      {issues?.general.length ? (
+        <div className="import-general" role="status">
+          <Icon name="info" />
+          <ul>
+            {issues.general.map((message) => (
+              <li key={message}>{message}</li>
+            ))}
+          </ul>
         </div>
-      ) : (
-        <p className="subtle" style={{ marginTop: 12 }}>
-          {busy
-            ? 'Leyendo archivo…'
-            : 'Elige PDF/Word (IA), XML, CSV o Excel del proveedor o cliente.'}
-        </p>
-      )}
+      ) : null}
+
+      {preview ? (
+        <>
+          <div className="import-summary">
+            <span>
+              <b>{num(importable.length)}</b> {importable.length === 1 ? 'línea' : 'líneas'}
+            </span>
+            <span>
+              <b>{num(units)}</b> u.
+            </span>
+            {total > 0 ? (
+              <span>
+                Total <b>{money(total)}</b>
+              </span>
+            ) : null}
+            {errCount || infoCount ? (
+              <div className="import-filters" role="group" aria-label="Filtrar líneas">
+                <button type="button" aria-pressed={filter === 'all'} onClick={() => setFilter('all')}>
+                  Todas {preview.rows.length}
+                </button>
+                {errCount ? (
+                  <button type="button" className="err" aria-pressed={filter === 'err'} onClick={() => setFilter('err')}>
+                    <i aria-hidden="true" />
+                    Con error {errCount}
+                  </button>
+                ) : null}
+                {infoCount ? (
+                  <button type="button" className="info" aria-pressed={filter === 'info'} onClick={() => setFilter('info')}>
+                    <i aria-hidden="true" />
+                    Nuevos {infoCount}
+                  </button>
+                ) : null}
+              </div>
+            ) : null}
+          </div>
+
+          <div className="table-scroll import-table">
+            <table>
+              <colgroup>
+                <col className="c-product" />
+                <col className="c-qty" />
+                <col className="c-pack" />
+                <col className="c-date" />
+                <col className="c-status" />
+              </colgroup>
+              <thead>
+                <tr>
+                  <th>Producto</th>
+                  <th>Cantidad</th>
+                  <th>Empaque</th>
+                  <th>
+                    Caducidad <small>opcional</small>
+                  </th>
+                  <th>Estado</th>
+                </tr>
+              </thead>
+              <tbody>
+                {preview.rows.map((row, index) => {
+                  const view = views[index];
+                  const hidden =
+                    filter !== 'all' && !(filter === 'err' ? view.tone === 'err' : view.tone === 'info');
+                  return (
+                    <tr key={`${row.code}-${index}`} className={`import-row ${view.tone}`} hidden={hidden}>
+                      <td className="import-product">
+                        <strong title={row.name}>{row.name}</strong>
+                        <span className="sub">{row.code}</span>
+                      </td>
+                      <td className="import-qty">{num(row.qty)}</td>
+                      <td className="import-pack">{row.packCode}</td>
+                      <td className="import-date">
+                        <input
+                          aria-label={`Caducidad de ${row.code} (opcional)`}
+                          type="date"
+                          value={row.expiry}
+                          onChange={(event) => {
+                            const rows = preview.rows.map((item, i) =>
+                              i === index ? { ...item, expiry: event.target.value } : item,
+                            );
+                            setPreview({ ...preview, rows });
+                          }}
+                        />
+                      </td>
+                      <td className="import-state">
+                        {view.tone === 'ok' ? (
+                          <span className="import-status ok">{view.label}</span>
+                        ) : (
+                          <TooltipButton
+                            className={`import-status ${view.tone}`}
+                            label={`${view.label}: ${view.title}. Ver detalle`}
+                            content={
+                              <>
+                                <b>{view.title}</b>
+                                {view.detail}
+                                {view.extra.length ? (
+                                  <ul>
+                                    {view.extra.map((message) => (
+                                      <li key={message}>{message}</li>
+                                    ))}
+                                  </ul>
+                                ) : null}
+                                {view.action ? <span className="ui-tooltip-note">{view.action}</span> : null}
+                              </>
+                            }
+                          >
+                            <Icon name={view.tone === 'info' ? 'info' : 'alert'} />
+                            {view.label}
+                          </TooltipButton>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </>
+      ) : null}
       {error ? <div className="form-error visible">{error}</div> : null}
     </Modal>
   );
-}
-
-function fileToBase64(file: File) {
-  return new Promise<string>((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      const value = String(reader.result ?? '');
-      resolve(value.slice(value.indexOf(',') + 1));
-    };
-    reader.onerror = () => reject(reader.error);
-    reader.readAsDataURL(file);
-  });
 }

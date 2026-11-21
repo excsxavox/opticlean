@@ -13,6 +13,7 @@ import {
   unstageOrders,
   updateClient,
 } from '../src/domain/commerce.service.js';
+import { createSupplier } from '../src/domain/suppliers.service.js';
 import { deleteBundle, saveBundle } from '../src/domain/bundles.service.js';
 import { deleteVehicle, upsertVehicle } from '../src/domain/fleet.service.js';
 
@@ -102,14 +103,21 @@ test('Clients are validated, editable and protected when they have orders', () =
   const s = seed();
   assert.throws(() => createClient(s, { name: 'Nuevo' }), /Completa/);
   const c = createClient(s, {
-    name: 'Hostal Test', contact: 'Ana', address: 'Calle 1', email: 'ana@test.ec', type: 'Hotelería', city: 'Quito',
+    name: 'Hostal Test', contact: 'Ana', address: 'Calle 1', email: 'ana@test.ec', type: 'Hotelería', city: 'Quito', taxId: '1790000009001',
   });
-  updateClient(s, c.id, { contact: 'Luis', sector: 'Norte' });
+  updateClient(s, c.id, { contact: 'Luis', sector: 'Norte', phone: '0990000000', city: 'Quito' });
   assert.equal(s.clients.find((x) => x.id === c.id)!.contact, 'Luis');
+  assert.equal(s.clients.find((x) => x.id === c.id)!.phone, '0990000000');
+  assert.throws(() => createClient(s, {
+    name: 'Otro hostal', contact: 'Ana', address: 'Calle 2', email: 'otro@test.ec', type: 'Hotelería', taxId: '1790000009001',
+  }), /RUC/);
   assert.throws(() => updateClient(s, c.id, { email: 'no-es-correo' }), /correo/);
   assert.throws(() => deleteClient(s, 'CL001'), /pedidos/);
   deleteClient(s, c.id);
   assert.equal(s.clients.some((x) => x.id === c.id), false);
+  assert.throws(() => createSupplier(s, { name: 'Sin ruc' }), /13 dígitos/);
+  createSupplier(s, { name: 'Papel Demo', taxId: '1790000003001' });
+  assert.throws(() => createSupplier(s, { name: 'Papel Dos', taxId: '1790000003001' }), /RUC/);
 });
 
 test('Staging a prepared order is saved on the order and cleared by dispatch', () => {

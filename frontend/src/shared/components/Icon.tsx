@@ -20,6 +20,7 @@ import {
   FileText,
   FlaskConical,
   History,
+  ImagePlus,
   Hospital,
   House,
   Info,
@@ -36,6 +37,7 @@ import {
   Motorbike,
   MousePointer2,
   Package,
+  Paperclip,
   PackagePlus,
   Pencil,
   Plus,
@@ -50,6 +52,8 @@ import {
   Sparkles,
   Trash2,
   TriangleAlert,
+  Upload,
+  CircleAlert,
   Truck,
   Users,
   Warehouse,
@@ -120,6 +124,10 @@ export const icons = {
   scan: ScanLine,
   loader: LoaderCircle,
   logout: LogOut,
+  upload: Upload,
+  clip: Paperclip,
+  image: ImagePlus,
+  stop: CircleAlert,
 } satisfies Record<string, LucideIcon>;
 
 export type IconName = keyof typeof icons;

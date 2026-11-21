@@ -152,13 +152,33 @@ function cleanClient(input: Partial<Client>) {
     out[f] = v;
   }
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(out.email)) throw new Error('El correo no es válido.');
-  if (input.city?.trim()) out.city = input.city.trim();
-  if (input.sector?.trim()) out.sector = input.sector.trim();
+  const taxId = String(input.taxId ?? '').replace(/\D/g, '');
+  if (!/^\d{13}$/.test(taxId)) throw new Error('El RUC debe tener 13 dígitos.');
+  out.taxId = taxId;
+  const city = input.city?.trim() ?? '';
+  if (city) out.city = city;
+  const sector = input.sector?.trim() ?? '';
+  if (sector) out.sector = sector;
+  const phone = input.phone?.trim() ?? '';
+  if (phone) out.phone = phone;
+  const cadence = Number(input.reorderEveryDays);
+  if (Number.isInteger(cadence) && cadence > 0) out.reorderEveryDays = cadence;
+  if (Number.isFinite(input.lat) && Number.isFinite(input.lng)) {
+    out.lat = Number(input.lat);
+    out.lng = Number(input.lng);
+  }
   return out;
+}
+
+function assertUniqueClientTax(s: AppState, taxId: string, exceptId?: string) {
+  if (s.clients.some((client) => client.id !== exceptId && client.taxId === taxId)) {
+    throw new Error('Ya existe un cliente con ese RUC.');
+  }
 }
 
 export function createClient(s: AppState, input: Partial<Client>) {
   const data = cleanClient(input);
+  assertUniqueClientTax(s, data.taxId!);
   if (s.clients.some((c) => c.name.toLowerCase() === data.name.toLowerCase())) {
     throw new Error('Ya existe un cliente con ese nombre.');
   }
@@ -172,11 +192,16 @@ export function updateClient(s: AppState, id: string, input: Partial<Client>) {
   const c = s.clients.find((x) => x.id === id);
   if (!c) throw new Error('Cliente no encontrado.');
   const data = cleanClient({ ...c, ...input });
+  assertUniqueClientTax(s, data.taxId!, id);
   if (s.clients.some((x) => x.id !== id && x.name.toLowerCase() === data.name.toLowerCase())) {
     throw new Error('Ya existe un cliente con ese nombre.');
   }
   delete c.city;
   delete c.sector;
+  delete c.phone;
+  delete c.reorderEveryDays;
+  delete c.lat;
+  delete c.lng;
   Object.assign(c, data);
   return c;
 }

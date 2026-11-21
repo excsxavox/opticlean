@@ -104,7 +104,7 @@ export function OrdersPage({
         <section className="panel">
           <div className="panel-head">
             <span className="panel-title">
-              <Icon name="route" /> Ruta de picking (FIFO)
+              <Icon name="route" /> Ruta de picking (FEFO)
             </span>
           </div>
           <p className="subtle" style={{ margin: '0 14px 8px' }}>

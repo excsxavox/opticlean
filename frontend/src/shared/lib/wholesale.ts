@@ -1,5 +1,5 @@
 import type { AppState, HazardClass, Product, ProductPack, Purchase } from '../types';
-import { product, scopedLots } from './inventory';
+import { lotsForScope, product, scopedLots } from './inventory';
 
 export const HAZARD_LABEL: Record<HazardClass, string> = {
   none: 'Sin riesgo químico',
@@ -59,11 +59,12 @@ export type ExpiryAlert = {
   band: 'vencido' | '30' | '60' | '90';
 };
 
-export function expiryAlerts(state: AppState): ExpiryAlert[] {
+export function expiryAlerts(state: AppState, warehouseId?: string | 'all'): ExpiryAlert[] {
   const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Guayaquil' });
   const todayMs = Date.parse(`${today}T12:00:00Z`);
   const alerts: ExpiryAlert[] = [];
-  for (const lot of scopedLots(state)) {
+  const lots = warehouseId ? lotsForScope(state, warehouseId) : scopedLots(state);
+  for (const lot of lots) {
     if (lot.qty <= 0 || !/^\d{4}-\d{2}-\d{2}$/.test(lot.expiry)) continue;
     const days = Math.round((Date.parse(`${lot.expiry}T12:00:00Z`) - todayMs) / 864e5);
     const band = days < 0 ? 'vencido' : days <= 30 ? '30' : days <= 60 ? '60' : days <= 90 ? '90' : null;

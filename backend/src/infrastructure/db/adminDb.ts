@@ -109,6 +109,7 @@ const SEED_MODULES: Array<Omit<ModuleRow, 'active'> & { active?: number }> = [
     sort_order: 110,
   },
   { id: 'mod-clients', code: 'clients', name: 'Clientes', description: 'Directorio de clientes', icon: 'users', sort_order: 120 },
+  { id: 'mod-suppliers', code: 'suppliers', name: 'Proveedores', description: 'Directorio de proveedores', icon: 'building', sort_order: 122 },
   {
     id: 'mod-commercial',
     code: 'commercial',
@@ -178,27 +179,18 @@ const SEED_MENU: Array<Omit<MenuItem, 'active' | 'badge'> & { badge?: string | n
     label: 'Bodega visual',
     path: '/bodega',
     icon: 'warehouse',
+    section: 'Bodega',
+    sort_order: 20,
+    badge: null,
+  },
+  {
+    id: 'mi-quotes',
+    module_id: 'mod-orders',
+    label: 'Cotizaciones',
+    path: '/cotizaciones',
+    icon: 'file',
     section: 'Operación',
     sort_order: 40,
-    badge: 'NUEVO',
-  },
-  {
-    id: 'mi-warehouses',
-    module_id: 'mod-warehouses',
-    label: 'Bodegas',
-    path: '/bodegas',
-    icon: 'building',
-    section: 'Operación',
-    sort_order: 50,
-  },
-  {
-    id: 'mi-families',
-    module_id: 'mod-families',
-    label: 'Familias',
-    path: '/familias',
-    icon: 'layers',
-    section: 'Operación',
-    sort_order: 60,
   },
   {
     id: 'mi-orders',
@@ -207,16 +199,16 @@ const SEED_MENU: Array<Omit<MenuItem, 'active' | 'badge'> & { badge?: string | n
     path: '/pedidos',
     icon: 'orders',
     section: 'Operación',
-    sort_order: 70,
+    sort_order: 50,
   },
   {
-    id: 'mi-purchases',
-    module_id: 'mod-purchases',
-    label: 'Abastecimiento',
-    path: '/compras',
-    icon: 'cart',
+    id: 'mi-packing',
+    module_id: 'mod-logistics',
+    label: 'Empaque',
+    path: '/empaque',
+    icon: 'cube',
     section: 'Operación',
-    sort_order: 80,
+    sort_order: 60,
   },
   {
     id: 'mi-logistics',
@@ -225,7 +217,7 @@ const SEED_MENU: Array<Omit<MenuItem, 'active' | 'badge'> & { badge?: string | n
     path: '/logistica',
     icon: 'truck',
     section: 'Operación',
-    sort_order: 90,
+    sort_order: 70,
   },
   {
     id: 'mi-routes',
@@ -234,7 +226,7 @@ const SEED_MENU: Array<Omit<MenuItem, 'active' | 'badge'> & { badge?: string | n
     path: '/logistica/rutas',
     icon: 'route',
     section: 'Operación',
-    sort_order: 100,
+    sort_order: 80,
   },
   {
     id: 'mi-route-history',
@@ -243,7 +235,61 @@ const SEED_MENU: Array<Omit<MenuItem, 'active' | 'badge'> & { badge?: string | n
     path: '/logistica/historial',
     icon: 'history',
     section: 'Operación',
-    sort_order: 110,
+    sort_order: 90,
+  },
+  {
+    id: 'mi-trace',
+    module_id: 'mod-traceability',
+    label: 'Trazabilidad',
+    path: '/trazabilidad',
+    icon: 'route',
+    section: 'Operación',
+    sort_order: 100,
+  },
+  {
+    id: 'mi-plan',
+    module_id: 'mod-purchases',
+    label: 'Plan de mañana',
+    path: '/plan',
+    icon: 'calendar',
+    section: 'Abastecimiento',
+    sort_order: 10,
+  },
+  {
+    id: 'mi-purchases',
+    module_id: 'mod-purchases',
+    label: 'Abastecimiento',
+    path: '/compras',
+    icon: 'cart',
+    section: 'Abastecimiento',
+    sort_order: 20,
+  },
+  {
+    id: 'mi-suppliers',
+    module_id: 'mod-suppliers',
+    label: 'Proveedores',
+    path: '/proveedores',
+    icon: 'building',
+    section: 'Abastecimiento',
+    sort_order: 30,
+  },
+  {
+    id: 'mi-warehouses',
+    module_id: 'mod-warehouses',
+    label: 'Bodegas',
+    path: '/bodegas',
+    icon: 'building',
+    section: 'Bodega',
+    sort_order: 10,
+  },
+  {
+    id: 'mi-families',
+    module_id: 'mod-families',
+    label: 'Familias',
+    path: '/familias',
+    icon: 'layers',
+    section: 'Bodega',
+    sort_order: 30,
   },
   {
     id: 'mi-clients',
@@ -260,15 +306,6 @@ const SEED_MENU: Array<Omit<MenuItem, 'active' | 'badge'> & { badge?: string | n
     label: 'Comercial',
     path: '/comercial',
     icon: 'orders',
-    section: 'Gestión',
-    sort_order: 15,
-  },
-  {
-    id: 'mi-trace',
-    module_id: 'mod-traceability',
-    label: 'Trazabilidad',
-    path: '/trazabilidad',
-    icon: 'route',
     section: 'Gestión',
     sort_order: 20,
   },
@@ -288,7 +325,7 @@ const SEED_MENU: Array<Omit<MenuItem, 'active' | 'badge'> & { badge?: string | n
     path: '/reglas',
     icon: 'shield',
     section: 'Gestión',
-    sort_order: 35,
+    sort_order: 40,
   },
   {
     id: 'mi-users',
@@ -297,7 +334,7 @@ const SEED_MENU: Array<Omit<MenuItem, 'active' | 'badge'> & { badge?: string | n
     path: '/usuarios',
     icon: 'users',
     section: 'Gestión',
-    sort_order: 38,
+    sort_order: 50,
   },
   {
     id: 'mi-settings',
@@ -306,7 +343,7 @@ const SEED_MENU: Array<Omit<MenuItem, 'active' | 'badge'> & { badge?: string | n
     path: '/configuracion',
     icon: 'settings',
     section: 'Gestión',
-    sort_order: 40,
+    sort_order: 60,
   },
 ];
 
@@ -353,7 +390,20 @@ function seed(database: DatabaseSync) {
         item.sort_order,
         item.badge ?? null,
       );
+    database
+      .prepare(`UPDATE menu_items SET section = ?, sort_order = ? WHERE id = ?`)
+      .run(item.section, item.sort_order, item.id);
   }
+
+  database.prepare(`UPDATE menu_items SET badge = NULL WHERE badge = 'NUEVO'`).run();
+  database
+    .prepare(
+      `INSERT OR IGNORE INTO company_modules (company_id, module_id, enabled)
+       SELECT company_id, 'mod-suppliers', 1
+       FROM company_modules
+       WHERE module_id IN ('mod-purchases', 'mod-clients') AND enabled = 1`,
+    )
+    .run();
 
   // Innova MF: todos los módulos
   for (const m of SEED_MODULES) {

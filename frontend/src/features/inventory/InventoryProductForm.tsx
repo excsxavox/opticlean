@@ -59,6 +59,11 @@ export function InventoryProductForm({ product, categories, products, onClose, o
   const [sanitaryExpires, setSanitaryExpires] = useState(product?.sanitaryExpires ?? '');
   const [ivaRate, setIvaRate] = useState(product?.ivaRate != null ? String(product.ivaRate) : '0.15');
   const [inspectOnReceipt, setInspectOnReceipt] = useState(!!product?.inspectOnReceipt);
+  const [perishable, setPerishable] = useState(product?.perishable !== false);
+  const [requiresSanitary, setRequiresSanitary] = useState(!!product?.requiresSanitary);
+  const [labelText, setLabelText] = useState('');
+  const [attributes, setAttributes] = useState(product?.attributes ?? []);
+  const [presentations, setPresentations] = useState((product?.presentations ?? []).join(', '));
   const [packUnits, setPackUnits] = useState({
     paquete: product?.packs?.find((pack) => pack.code === 'paquete')?.units ?? 6,
     caja: product?.packs?.find((pack) => pack.code === 'caja')?.units ?? 12,
@@ -288,6 +293,12 @@ export function InventoryProductForm({ product, categories, products, onClose, o
       return;
     }
     if (validateSteps(steps.map((_, i) => i)) !== -1) return;
+    if (requiresSanitary && !sanitaryRegistration.trim()) {
+      setServerError('Indica el registro sanitario.');
+      pendingRef.current = false;
+      setPending(false);
+      return;
+    }
     if (!event.currentTarget.reportValidity()) return;
 
     pendingRef.current = true;
@@ -309,6 +320,8 @@ export function InventoryProductForm({ product, categories, products, onClose, o
         kind,
         hazardClass,
         minShelfLifeDays: Number(minShelfLifeDays) || 0,
+        perishable,
+        requiresSanitary,
         sanitaryRegistration: sanitaryRegistration.trim() || undefined,
         sanitaryExpires: sanitaryExpires || undefined,
         ivaRate: Number(ivaRate),
@@ -327,6 +340,8 @@ export function InventoryProductForm({ product, categories, products, onClose, o
           productId: c.productId,
           qty: Number(c.qty),
         })),
+        attributes,
+        presentations: presentations.split(',').map((item) => item.trim()).filter(Boolean),
       });
       applyResponse(response);
       toast(product ? 'Producto actualizado.' : 'Producto creado. Registra una recepción para añadir existencias.');
@@ -506,7 +521,65 @@ export function InventoryProductForm({ product, categories, products, onClose, o
                         <input id={`${uniqueId}-shelf`} type="number" min={0} step={1} value={minShelfLifeDays} onChange={(event) => setMinShelfLifeDays(Number(event.target.value))} />
                         <span aria-hidden="true">días</span>
                       </div>
-                      <small>No se vende un lote que vence antes.</small>
+                      <small>No se vende un lote que vence antes. Si el producto no caduca, desmarca la casilla.</small>
+                    </div>
+                    <div className="field full">
+                      <label htmlFor={`${uniqueId}-label`}>Texto de la etiqueta</label>
+                      <textarea id={`${uniqueId}-label`} value={labelText} onChange={(event) => setLabelText(event.target.value)} placeholder="Pega nombre, presentación y advertencias" />
+                      <button
+                        type="button"
+                        className="btn"
+                        onClick={() => {
+                          void api.readLabel(labelText).then((reading) => {
+                            if (reading.name) setValues((current) => ({ ...current, name: reading.name }));
+                            setPresentations(reading.presentations.join(', '));
+                            setAttributes(reading.attributes);
+                          }).catch((err) => setServerError(err instanceof Error ? err.message : 'No se pudo leer la etiqueta.'));
+                        }}
+                      >
+                        Leer etiqueta
+                      </button>
+                    </div>
+                    <div className="field">
+                      <label htmlFor={`${uniqueId}-presentations`}>Presentaciones</label>
+                      <input id={`${uniqueId}-presentations`} value={presentations} onChange={(event) => setPresentations(event.target.value)} placeholder="Caja, Galón" />
+                    </div>
+                    <div className="field full">
+                      <label>Atributos</label>
+                      {attributes.map((attribute, index) => (
+                        <div key={`${attribute.name}-${index}`} className="form-grid">
+                          <input
+                            aria-label={`Atributo ${index + 1}`}
+                            value={attribute.name}
+                            onChange={(event) => setAttributes(attributes.map((item, i) => (i === index ? { ...item, name: event.target.value } : item)))}
+                          />
+                          <input
+                            aria-label={`Valor ${index + 1}`}
+                            value={attribute.value}
+                            onChange={(event) => setAttributes(attributes.map((item, i) => (i === index ? { ...item, value: event.target.value } : item)))}
+                          />
+                        </div>
+                      ))}
+                      <button type="button" className="btn" onClick={() => setAttributes([...attributes, { name: '', value: '' }])}>
+                        Atributo
+                      </button>
+                    </div>
+                    <div className="field">
+                      <label htmlFor={`${uniqueId}-perishable`} style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                        <input id={`${uniqueId}-perishable`} type="checkbox" checked={perishable} onChange={(event) => setPerishable(event.target.checked)} />
+                        Este producto caduca
+                      </label>
+                    </div>
+                    <div className="field">
+                      <label htmlFor={`${uniqueId}-requires-sanitary`} style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                        <input
+                          id={`${uniqueId}-requires-sanitary`}
+                          type="checkbox"
+                          checked={requiresSanitary}
+                          onChange={(event) => setRequiresSanitary(event.target.checked)}
+                        />
+                        Exige registro sanitario
+                      </label>
                     </div>
                     <div className="field">
                       <label htmlFor={`${uniqueId}-sanitary`}>Registro sanitario</label>

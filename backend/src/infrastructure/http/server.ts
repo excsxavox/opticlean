@@ -6,6 +6,8 @@ import { JsonStateRepository } from '../persistence/JsonStateRepository.js';
 import { OperationsUseCases } from '../../application/use-cases/OperationsUseCases.js';
 import { suggest, suggestPlacement } from '../../domain/placement.service.js';
 import { autoAssignLogistics, openaiConfigured } from '../../domain/logistics-ai.service.js';
+import { readLabel } from '../../domain/outbound.service.js';
+import { renderReport } from '../../domain/report-file.js';
 import {
   adminRequired,
   authRequired,
@@ -132,7 +134,10 @@ function roleDenied(req: express.Request) {
   const path = req.path;
   const allow = (roles: AuthRole[]) =>
     roles.includes(role) ? null : 'Tu rol no tiene permiso para esta acción.';
-  if (path === '/api/delivery' || path === '/api/incidents') return allow(['dispatch', 'driver', 'ops']);
+  if (path === '/api/delivery' || path === '/api/incidents' || path === '/api/delivery/skip') {
+    return allow(['dispatch', 'driver', 'ops']);
+  }
+  if (path === '/api/packing' || path === '/api/loading/preview') return allow(['ops', 'dispatch']);
   if (path === '/api/dispatch' || path.startsWith('/api/logistics')) return allow(['dispatch']);
   if (path.startsWith('/api/guides')) return allow(['dispatch', 'ops']);
   if (
@@ -172,7 +177,7 @@ function roleDenied(req: express.Request) {
 
 app.use((req, res, next) => {
   if (!req.path.startsWith('/api/')) return next();
-  if (req.path === '/api/health' || req.path === '/api/auth/login') return next();
+  if (req.path === '/api/health' || req.path === '/api/auth/login' || req.path === '/api/public/delivery-code') return next();
   if (req.path.startsWith('/api/admin')) return next();
   authRequired(req, res, () => {
     if (res.headersSent) return;
@@ -581,9 +586,26 @@ app.get('/api/logistics/ai-status', authRequired, (_req, res) => {
 
 app.post('/api/delivery', async (req, res, next) => {
   try {
-    const { orderId, person, notes } = req.body;
-    const state = await ops.delivery(orderId, person, notes);
+    const { orderId, person, notes, code } = req.body;
+    const state = await ops.delivery(orderId, person, notes, code);
     res.json({ state, metrics: ops.metricsSnapshot(state) });
+  } catch (e) {
+    next(e);
+  }
+});
+
+app.post('/api/delivery/skip', async (req, res, next) => {
+  try {
+    const state = await ops.skipStop(String(req.body?.orderId ?? ''));
+    res.json({ state, metrics: ops.metricsSnapshot(state) });
+  } catch (e) {
+    next(e);
+  }
+});
+
+app.get('/api/public/delivery-code', async (req, res, next) => {
+  try {
+    res.json(await ops.deliveryCode(String(req.query.orderId ?? ''), String(req.query.k ?? '')));
   } catch (e) {
     next(e);
   }
@@ -1220,6 +1242,120 @@ app.get('/api/replenishment', async (_req, res, next) => {
 app.post('/api/replenishment', async (_req, res, next) => {
   try {
     stateJson(res, await ops.createReplenishment());
+  } catch (e) {
+    next(e);
+  }
+});
+
+app.get('/api/plan', async (_req, res, next) => {
+  try {
+    res.json(await ops.plan());
+  } catch (e) {
+    next(e);
+  }
+});
+
+app.post('/api/plan/:id/approve', async (req, res, next) => {
+  try {
+    stateJson(res, await ops.approvePlan(req.params.id));
+  } catch (e) {
+    next(e);
+  }
+});
+
+app.post('/api/plan/:id/discard', async (req, res, next) => {
+  try {
+    stateJson(res, await ops.discardPlan(req.params.id, req.body?.note));
+  } catch (e) {
+    next(e);
+  }
+});
+
+app.post('/api/plan/:id/undo', async (req, res, next) => {
+  try {
+    stateJson(res, await ops.undoPlan(req.params.id));
+  } catch (e) {
+    next(e);
+  }
+});
+
+app.post('/api/quotes', async (req, res, next) => {
+  try {
+    stateJson(res, await ops.addQuote(req.body ?? {}));
+  } catch (e) {
+    next(e);
+  }
+});
+
+app.post('/api/quotes/:id/win', async (req, res, next) => {
+  try {
+    stateJson(res, await ops.winQuote(req.params.id));
+  } catch (e) {
+    next(e);
+  }
+});
+
+app.post('/api/quotes/:id/lose', async (req, res, next) => {
+  try {
+    stateJson(res, await ops.loseQuote(req.params.id));
+  } catch (e) {
+    next(e);
+  }
+});
+
+app.post('/api/packing', async (req, res, next) => {
+  try {
+    stateJson(res, await ops.pack(String(req.body?.orderId ?? ''), Number(req.body?.weightKg), Number(req.body?.volumeM3)));
+  } catch (e) {
+    next(e);
+  }
+});
+
+app.post('/api/loading/preview', async (req, res, next) => {
+  try {
+    res.json(await ops.previewLoad(String(req.body?.plate ?? ''), Array.isArray(req.body?.orderIds) ? req.body.orderIds.map(String) : []));
+  } catch (e) {
+    next(e);
+  }
+});
+
+app.post('/api/offerings', async (req, res, next) => {
+  try {
+    stateJson(res, await ops.addOffering(req.body ?? {}));
+  } catch (e) {
+    next(e);
+  }
+});
+
+app.delete('/api/offerings/:id', async (req, res, next) => {
+  try {
+    stateJson(res, await ops.deleteOffering(req.params.id));
+  } catch (e) {
+    next(e);
+  }
+});
+
+app.post('/api/products/read-label', (req, res, next) => {
+  try {
+    res.json(readLabel(String(req.body?.text ?? '')));
+  } catch (e) {
+    next(e);
+  }
+});
+
+app.get('/api/reports/:kind', async (req, res, next) => {
+  try {
+    const kind = req.params.kind === 'diagnostics' ? 'diagnostics' : req.params.kind === 'traceability' ? 'traceability' : '';
+    const format = req.query.format === 'pdf' ? 'pdf' : req.query.format === 'xlsx' ? 'xlsx' : '';
+    if (!kind || !format) {
+      res.status(400).json({ error: 'Usa traceability o diagnostics, en xlsx o pdf.' });
+      return;
+    }
+    const state = await repo.load();
+    const file = await renderReport(state, kind, format);
+    res.setHeader('Content-Type', file.contentType);
+    res.setHeader('Content-Disposition', `attachment; filename="${file.filename}"`);
+    res.end(file.buffer);
   } catch (e) {
     next(e);
   }

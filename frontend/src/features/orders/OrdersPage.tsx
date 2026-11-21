@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAppState } from '../../shared/hooks/AppStateProvider';
 import { useAuth } from '../../shared/hooks/AuthProvider';
 import { api } from '../../shared/api/client';
-import { client, money, orderValue, orderWeight, product, statusColor } from '../../shared/lib/inventory';
+import { client, invoiceBalance, money, orderValue, orderWeight, product, statusColor } from '../../shared/lib/inventory';
 import { Badge, Btn, Empty, Kpi, KpiGrid, PageHead } from '../../shared/components/ui';
+import { Select } from '../../shared/components/Select';
 import { Modal } from '../../shared/components/Modal';
 import { Icon } from '../../shared/components/Icon';
 import { AssignPicker } from './AssignPicker';
@@ -27,7 +28,12 @@ export function OrdersPage() {
   const [bodegueroCount, setBodegueroCount] = useState(0);
   const [cancelling, setCancelling] = useState<{ id: string; reason: string } | null>(null);
   const [cancelBusy, setCancelBusy] = useState(false);
+  const [payAmount, setPayAmount] = useState('');
+  const [payMethod, setPayMethod] = useState('Transferencia');
+  const [payRef, setPayRef] = useState('');
+  const [billBusy, setBillBusy] = useState(false);
   const canCancel = user?.role === 'admin' || user?.role === 'ops';
+  const canBill = user?.role === 'admin';
 
   const confirmCancel = async () => {
     if (!cancelling || cancelBusy) return;
@@ -44,6 +50,8 @@ export function OrdersPage() {
     }
   };
   const location = useLocation();
+  const [params] = useSearchParams();
+  const query = (params.get('q') ?? '').trim().toLowerCase();
 
   // Abre el detalle cuando se llega desde una orden de compra enlazada.
   useEffect(() => {
@@ -89,12 +97,21 @@ export function OrdersPage() {
   }, [user?.role]);
 
   useEffect(() => {
+    if (query) setTab('Todos');
+  }, [query]);
+
+  useEffect(() => {
     setPage(1);
   }, [tab]);
 
   if (!state) return null;
 
-  const list = liveOrders.filter((o) => tab === 'Todos' || o.status === tab);
+  const list = liveOrders.filter((o) => {
+    if (tab !== 'Todos' && o.status !== tab) return false;
+    if (!query) return true;
+    const name = client(state, o.clientId)?.name ?? '';
+    return o.id.toLowerCase().includes(query) || name.toLowerCase().includes(query);
+  });
   const pageCount = Math.max(1, Math.ceil(list.length / PAGE_SIZE));
   const safePage = Math.min(page, pageCount);
   const pageList = list.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
@@ -104,6 +121,45 @@ export function OrdersPage() {
   const detailClient = detail ? client(state, detail.clientId) : null;
   const detailTotal = detail ? orderValue(state, detail) : 0;
   const detailKg = detail ? orderWeight(state, detail) : 0;
+  const detailInvoice = detail
+    ? (state.invoices ?? []).find((item) => item.orderId === detail.id && item.status === 'Emitida')
+    : undefined;
+  const detailBalance = detailInvoice ? invoiceBalance(state, detailInvoice.id) : 0;
+
+  const emitInvoice = async () => {
+    if (!detail || billBusy) return;
+    setBillBusy(true);
+    try {
+      applyResponse(await api.issueInvoice(detail.id));
+      toast('Factura emitida.');
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'No se pudo emitir la factura.');
+    } finally {
+      setBillBusy(false);
+    }
+  };
+
+  const collect = async () => {
+    if (!detailInvoice || billBusy) return;
+    setBillBusy(true);
+    try {
+      applyResponse(
+        await api.collectPayment({
+          invoiceId: detailInvoice.id,
+          amount: Number(payAmount),
+          method: payMethod,
+          reference: payRef,
+        }),
+      );
+      setPayAmount('');
+      setPayRef('');
+      toast('Abono registrado.');
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'No se pudo registrar el abono.');
+    } finally {
+      setBillBusy(false);
+    }
+  };
 
   const tabCount = (t: (typeof tabs)[number]) => {
     if (t === 'Todos') return counts.todos;
@@ -446,6 +502,66 @@ export function OrdersPage() {
               <span>Total del pedido</span>
               <strong>{money(detailTotal)}</strong>
             </div>
+
+            {['Preparado', 'En ruta', 'Entregado'].includes(detail.status) ? (
+              <div className="ord-notes">
+                {detailInvoice ? (
+                  <p>
+                    <strong>{detailInvoice.number}</strong>
+                    {' · '}
+                    total {money(detailInvoice.total)} · saldo {money(detailBalance)}
+                    {detailInvoice.lines.some((line) => line.batch)
+                      ? ` · lotes ${detailInvoice.lines.map((line) => line.batch).filter(Boolean).join(', ')}`
+                      : ''}
+                  </p>
+                ) : canBill ? (
+                  <Btn variant="primary" disabled={billBusy} onClick={() => void emitInvoice()}>
+                    Emitir factura
+                  </Btn>
+                ) : (
+                  <p>La factura la emite administración cuando el pedido ya está preparado.</p>
+                )}
+                {canBill && detailInvoice && detailBalance > 0 ? (
+                  <form
+                    className="form-grid"
+                    onSubmit={(event) => {
+                      event.preventDefault();
+                      void collect();
+                    }}
+                  >
+                    <div className="field">
+                      <label htmlFor="ord-pay-amount">Abono</label>
+                      <input
+                        id="ord-pay-amount"
+                        type="number"
+                        min="0.01"
+                        step="0.01"
+                        max={detailBalance}
+                        value={payAmount}
+                        onChange={(event) => setPayAmount(event.target.value)}
+                        required
+                      />
+                    </div>
+                    <div className="field">
+                      <label htmlFor="ord-pay-method">Método</label>
+                      <Select id="ord-pay-method" value={payMethod} onChange={(event) => setPayMethod(event.target.value)}>
+                        <option>Transferencia</option>
+                        <option>Efectivo</option>
+                        <option>Cheque</option>
+                        <option>Retención</option>
+                      </Select>
+                    </div>
+                    <div className="field">
+                      <label htmlFor="ord-pay-ref">Referencia</label>
+                      <input id="ord-pay-ref" value={payRef} onChange={(event) => setPayRef(event.target.value)} required />
+                    </div>
+                    <Btn type="submit" variant="primary" disabled={billBusy}>
+                      Registrar abono
+                    </Btn>
+                  </form>
+                ) : null}
+              </div>
+            ) : null}
           </div>
         </Modal>
       ) : null}

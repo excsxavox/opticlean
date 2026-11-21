@@ -168,7 +168,13 @@ export function menuForCompany(companyId: string) {
        JOIN company_modules cm ON cm.module_id = mi.module_id AND cm.company_id = ? AND cm.enabled = 1
        JOIN modules m ON m.id = mi.module_id AND m.active = 1
        WHERE mi.active = 1
-       ORDER BY CASE mi.section WHEN 'Operación' THEN 0 WHEN 'Gestión' THEN 1 ELSE 2 END,
+       ORDER BY CASE mi.section
+                  WHEN 'Operación' THEN 0
+                  WHEN 'Abastecimiento' THEN 1
+                  WHEN 'Bodega' THEN 2
+                  WHEN 'Gestión' THEN 3
+                  ELSE 4
+                END,
                 mi.sort_order, mi.label`,
     )
     .all(companyId) as MenuItem[];

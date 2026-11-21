@@ -34,6 +34,15 @@ function positive(value: unknown, field: string) {
   return n;
 }
 
+const FUELS = ['gasolina', 'diesel', 'gas', 'electrico'] as const;
+
+function fuelOf(value: string): Vehicle['fuel'] {
+  if (!FUELS.includes(value as (typeof FUELS)[number])) {
+    throw new Error('El combustible debe ser gasolina, diésel, gas o eléctrico.');
+  }
+  return value as Vehicle['fuel'];
+}
+
 export function upsertVehicle(s: AppState, input: Partial<Vehicle>) {
   const vehicles = ensureVehicles(s);
   const plate = cleanText(input.plate, 'placa').toUpperCase();
@@ -46,6 +55,9 @@ export function upsertVehicle(s: AppState, input: Partial<Vehicle>) {
     maxM3: positive(input.maxM3, 'La capacidad en m³'),
     costPerKm: positive(input.costPerKm, 'El costo por km'),
     active: input.active !== false,
+    ...(input.fuel ? { fuel: fuelOf(input.fuel) } : {}),
+    ...(input.kmPerUnit != null ? { kmPerUnit: positive(input.kmPerUnit, 'El rendimiento') } : {}),
+    ...(input.fuelPrice != null ? { fuelPrice: positive(input.fuelPrice, 'El precio del combustible') } : {}),
   };
   const existing = input.id ? vehicles.find((v) => v.id === input.id) : undefined;
   if (input.id && !existing) throw new Error('Vehículo no encontrado.');

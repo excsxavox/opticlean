@@ -12,6 +12,7 @@ import type {
 import {
   actorName,
   addEvent,
+  assertCanSell,
   available,
   client,
   product,
@@ -101,11 +102,33 @@ function warehouseName(s: AppState, id: string) {
 }
 
 function assertSanitary(s: AppState, productId: string) {
-  const item = product(s, productId);
-  if (!item?.sanitaryExpires) return;
-  if (item.sanitaryExpires < today()) {
-    throw new Error(`El registro sanitario de ${item.name} está vencido${item.sanitaryRegistration ? ` (${item.sanitaryRegistration})` : ''}.`);
+  assertCanSell(s, productId);
+}
+
+function missingPick(orderId: string): never {
+  throw new Error(`Prepara ${orderId} antes de despachar: falta el lote de salida.`);
+}
+
+function takePicks(
+  orderId: string,
+  pool: Array<{ productId: string; qty: number; batch?: string; expiry?: string }>,
+  productId: string,
+  qty: number,
+) {
+  let left = qty;
+  const parts: Array<{ qty: number; batch: string; expiry?: string }> = [];
+  for (const pick of pool) {
+    if (left <= 0) break;
+    if (pick.productId !== productId || pick.qty <= 0) continue;
+    const batch = pick.batch?.trim();
+    if (!batch) missingPick(orderId);
+    const take = Math.min(pick.qty, left);
+    parts.push({ qty: take, batch, ...(pick.expiry ? { expiry: pick.expiry } : {}) });
+    pick.qty -= take;
+    left -= take;
   }
+  if (left > 0) missingPick(orderId);
+  return parts;
 }
 
 export function issueInvoice(s: AppState, orderId: string) {
@@ -118,17 +141,32 @@ export function issueInvoice(s: AppState, orderId: string) {
   if (s.invoices!.some((invoice) => invoice.orderId === orderId && invoice.status === 'Emitida')) {
     throw new Error('Este pedido ya tiene una factura emitida.');
   }
+  const buyer = client(s, order.clientId);
+  if (!buyer?.taxId || !/^\d{13}$/.test(buyer.taxId)) {
+    throw new Error('El cliente necesita un RUC de 13 dígitos para facturar.');
+  }
   for (const line of order.lines) assertSanitary(s, line.productId);
-  const lines = order.lines.map((line) => {
+  const pool = (order.picks ?? []).map((pick) => ({ ...pick }));
+  if (!pool.length) missingPick(order.id);
+  const lines = order.lines.flatMap((line) => {
     const item = product(s, line.productId);
-    return {
+    return takePicks(order.id, pool, line.productId, line.qty).map((part) => ({
       productId: line.productId,
-      qty: line.qty,
+      qty: part.qty,
       unitPrice: line.unitPrice ?? item?.price ?? 0,
       ivaRate: productIvaRate(item),
       ...(item?.avgCost ? { unitCost: item.avgCost } : {}),
-    };
+      batch: part.batch,
+      ...(part.expiry ? { expiry: part.expiry } : {}),
+    }));
   });
+  for (const kit of order.kits ?? []) {
+    const bundle = s.bundles?.find((item) => item.id === kit.bundleId);
+    if (!bundle) continue;
+    for (const component of bundle.lines) {
+      takePicks(order.id, pool, component.productId, component.qty * kit.qty);
+    }
+  }
   const kits = (order.kits ?? []).map((kit) => ({
     bundleId: kit.bundleId,
     qty: kit.qty,
@@ -161,7 +199,7 @@ export function issueCreditNote(
   body: {
     invoiceId: string;
     reason: string;
-    lines: Array<{ productId: string; qty: number | string; restock?: boolean }>;
+    lines: Array<{ productId: string; qty: number | string; batch?: string; restock?: boolean }>;
   },
 ) {
   ensureCommercial(s);
@@ -173,22 +211,27 @@ export function issueCreditNote(
   const order = s.orders.find((item) => item.id === invoice.orderId);
   const lines = body.lines.map((line) => {
     const qty = positiveInt(line.qty);
-    const sold = invoice.lines.find((item) => item.productId === line.productId);
-    if (!sold) throw new Error('El producto no está en la factura.');
+    const batchWanted = line.batch?.trim();
+    const soldLines = invoice.lines.filter(
+      (item) => item.productId === line.productId && (!batchWanted || item.batch === batchWanted),
+    );
+    const soldQty = soldLines.reduce((n, item) => n + item.qty, 0);
+    if (!soldQty) throw new Error('El producto no está en la factura.');
     const already = s.creditNotes!
       .filter((note) => note.invoiceId === invoice.id && note.status === 'Emitida')
       .flatMap((note) => note.lines)
-      .filter((item) => item.productId === line.productId)
+      .filter((item) => item.productId === line.productId && (!batchWanted || item.batch === batchWanted))
       .reduce((n, item) => n + item.qty, 0);
-    if (qty + already > sold.qty) throw new Error('La devolución supera lo facturado.');
-    const pick = order?.picks?.find((item) => item.productId === line.productId);
+    if (qty + already > soldQty) throw new Error('La devolución supera lo facturado.');
+    const sold = soldLines[0];
+    const pick = order?.picks?.find((item) => item.productId === line.productId && (!batchWanted || item.batch === batchWanted));
     return {
       productId: line.productId,
       qty,
       unitPrice: sold.unitPrice,
       ivaRate: sold.ivaRate,
-      batch: pick?.batch,
-      expiry: pick?.expiry,
+      batch: batchWanted || sold.batch || pick?.batch,
+      expiry: sold.expiry || pick?.expiry,
       restock: line.restock !== false,
     };
   });
@@ -250,11 +293,13 @@ export function issueGuide(
   if (body.orderId) {
     const order = s.orders.find((item) => item.id === body.orderId);
     if (!order) throw new Error('Pedido no encontrado.');
+    const existing = s.guides!.find((item) => item.orderId === order.id && item.kind === 'Venta' && item.status === 'Emitida');
+    if (existing) return existing;
     if (!['Preparado', 'En ruta', 'Entregado'].includes(order.status)) {
       throw new Error('La guía se emite cuando el pedido ya está preparado.');
     }
+    if (!order.picks?.length || order.picks.some((line) => !line.batch?.trim())) missingPick(order.id);
     const invoice = s.invoices!.find((item) => item.orderId === order.id && item.status === 'Emitida');
-    const picks = order.picks?.length ? order.picks : order.lines;
     guide = {
       id: `GR-${String(n).padStart(4, '0')}`,
       number: fiscalNumber(n),
@@ -266,10 +311,10 @@ export function issueGuide(
       origin: s.settings.warehouse,
       destination: client(s, order.clientId)?.address || client(s, order.clientId)?.name || order.clientId,
       plate: order.vehicle,
-      lines: picks.map((line) => ({
+      lines: order.picks.map((line) => ({
         productId: line.productId,
         qty: line.qty,
-        batch: 'batch' in line && typeof line.batch === 'string' ? line.batch : undefined,
+        batch: line.batch,
       })),
       status: 'Emitida',
     };
@@ -735,20 +780,49 @@ export type ReplenishmentLine = {
   packQty: number;
   unitsPerPack: number;
   unitPrice: number;
+  /** mínimo propio, BOM o kit. */
+  reason: string;
 };
 
 export function suggestReplenishment(s: AppState) {
-  const groups = new Map<string, { supplierId: string; supplierName: string; leadTimeDays: number; lines: ReplenishmentLine[] }>();
+  const needs = new Map<string, { gap: number; reasons: Set<string> }>();
+  const addNeed = (productId: string, gap: number, reason: string) => {
+    if (gap <= 0) return;
+    const current = needs.get(productId) ?? { gap: 0, reasons: new Set<string>() };
+    current.gap = Math.max(current.gap, gap);
+    current.reasons.add(reason);
+    needs.set(productId, current);
+  };
   for (const item of s.products) {
-    if (!item.supplierId || item.min <= 0) continue;
+    if (item.min <= 0) continue;
     const free = available(s, item.id);
-    if (free >= item.min) continue;
-    const gap = Math.max(item.min * 2 - free, 1);
-    const packs = packsOf(item);
-    const pack = [...packs].sort((a, b) => b.units - a.units).find((candidate) => candidate.units <= gap) ?? packs[0];
-    const packQty = Math.max(1, Math.ceil(gap / pack.units));
+    if (free < item.min) addNeed(item.id, Math.max(item.min * 2 - free, 1), 'mínimo propio');
+  }
+  for (const parent of s.products) {
+    const components = parent.components ?? [];
+    if (!components.length) continue;
+    const short = Math.max(0, parent.min - available(s, parent.id));
+    if (short <= 0) continue;
+    for (const component of components) {
+      const need = Math.ceil(component.qty * short);
+      addNeed(component.productId, Math.max(0, need - available(s, component.productId)), 'BOM');
+    }
+  }
+  for (const bundle of s.bundles ?? []) {
+    for (const line of bundle.lines) {
+      const have = available(s, line.productId);
+      if (have < line.qty) addNeed(line.productId, line.qty - have, 'kit');
+    }
+  }
+  const groups = new Map<string, { supplierId: string; supplierName: string; leadTimeDays: number; lines: ReplenishmentLine[] }>();
+  for (const [productId, need] of needs) {
+    const item = product(s, productId);
+    if (!item?.supplierId) continue;
     const supplier = s.suppliers?.find((entry) => entry.id === item.supplierId);
     if (!supplier) continue;
+    const packs = packsOf(item);
+    const pack = [...packs].sort((a, b) => b.units - a.units).find((candidate) => candidate.units <= need.gap) ?? packs[0];
+    const packQty = Math.max(1, Math.ceil(need.gap / pack.units));
     const group = groups.get(supplier.id) ?? {
       supplierId: supplier.id,
       supplierName: supplier.name,
@@ -758,11 +832,12 @@ export function suggestReplenishment(s: AppState) {
     group.lines.push({
       productId: item.id,
       name: item.name,
-      gap,
+      gap: need.gap,
       packCode: pack.code,
       packQty,
       unitsPerPack: pack.units,
       unitPrice: roundMoney((item.avgCost ?? 0) * pack.units),
+      reason: [...need.reasons].join(' · '),
     });
     groups.set(supplier.id, group);
   }

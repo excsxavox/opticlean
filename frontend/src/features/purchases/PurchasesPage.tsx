@@ -542,7 +542,7 @@ export function PurchasesPage() {
               </div>
               <div className="field">
                 <label htmlFor="sup-tax">RUC</label>
-                <input id="sup-tax" name="taxId" />
+                <input id="sup-tax" name="taxId" inputMode="numeric" pattern="\d{13}" minLength={13} maxLength={13} required />
               </div>
               <div className="field">
                 <label htmlFor="sup-lead">Días de entrega</label>

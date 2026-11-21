@@ -144,9 +144,10 @@ export function ReceptionNewPage() {
   const fillAfter = selected ? Math.min(100, Math.round((occupiedAfter / selected.capacity) * 100)) : 0;
   const todayIso = new Date().toISOString().slice(0, 10);
 
+  const expires = selectedProduct?.perishable !== false;
   const stepValid = [
     !!productId && supplier.trim().length > 0 && (!!purchaseId || (isAdmin && !!reason)),
-    validQty && batch.trim().length > 0 && !!expiry && expiry >= todayIso,
+    validQty && batch.trim().length > 0 && (!expires || (!!expiry && expiry >= todayIso)),
     ready && !!selected && !lookupError && freeNow >= stockQty,
     true,
   ];
@@ -201,7 +202,7 @@ export function ReceptionNewPage() {
 
   const checks = [
     { label: 'Producto y proveedor', ok: stepValid[0] },
-    { label: 'Cantidad, lote y vencimiento', ok: stepValid[1] },
+    { label: expires ? 'Cantidad, lote y vencimiento' : 'Cantidad y lote', ok: stepValid[1] },
     { label: 'Ubicación con espacio', ok: step >= 2 && stepValid[2] },
   ];
 
@@ -405,16 +406,16 @@ export function ReceptionNewPage() {
                       <small>Tal como aparece en la etiqueta del proveedor.</small>
                     </div>
                     <div className="field">
-                      <label htmlFor="rec-expiry">Vencimiento</label>
+                      <label htmlFor="rec-expiry">{expires ? 'Vencimiento' : 'Vencimiento (no caduca)'}</label>
                       <input
                         id="rec-expiry"
                         type="date"
                         value={expiry}
                         onChange={(e) => setExpiry(e.target.value)}
                         min={todayIso}
-                        required
+                        required={expires}
                       />
-                      <small>Se despacha primero lo que vence antes.</small>
+                      <small>{expires ? 'Se despacha primero lo que vence antes.' : 'Este producto no caduca. La fecha queda vacía.'}</small>
                     </div>
                     <div className="field">
                       <label htmlFor="rec-inspect" style={{ display: 'flex', gap: 8, alignItems: 'center' }}>

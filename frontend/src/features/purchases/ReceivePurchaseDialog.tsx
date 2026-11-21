@@ -83,7 +83,9 @@ export function ReceivePurchaseDialog({ state, purchase, onClose }: { state: App
       const name = product(state, row.productId)?.name ?? row.productId;
       if (!Number.isInteger(row.qty) || row.qty > row.pending) return setError(`${name}: la cantidad no puede superar lo pendiente (${row.pending}).`);
       if (!row.batch.trim()) return setError(`${name}: falta el lote.`);
-      if (!row.expiry || row.expiry < today) return setError(`${name}: el vencimiento debe ser una fecha futura.`);
+      const expires = product(state, row.productId)?.perishable !== false;
+      if (expires && (!row.expiry || row.expiry < today)) return setError(`${name}: el vencimiento debe ser una fecha futura.`);
+      if (!expires && row.expiry && row.expiry < today) return setError(`${name}: el vencimiento no puede estar en el pasado.`);
       if (!row.loc) return setError(`${name}: elige la ubicación.`);
     }
     if (!receiving.length) return setError('Indica al menos una cantidad recibida.');
@@ -175,7 +177,11 @@ export function ReceivePurchaseDialog({ state, purchase, onClose }: { state: App
                           type="date"
                           min={today}
                           value={row.expiry}
-                          aria-label={`Vencimiento de ${name}`}
+                          aria-label={
+                            product(state, row.productId)?.perishable === false
+                              ? `Vencimiento de ${name}, opcional porque no caduca`
+                              : `Vencimiento de ${name}`
+                          }
                           onChange={(e) => update(i, { expiry: e.target.value })}
                         />
                       </td>

@@ -1,14 +1,16 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Select } from '../../shared/components/Select';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAppState } from '../../shared/hooks/AppStateProvider';
 import { useAuth } from '../../shared/hooks/AuthProvider';
 import { api } from '../../shared/api/client';
 import {
   creditAvailable,
   creditUsed,
+  invoiceBalance,
   money,
   orderValue,
+  outstandingReceivable,
   statusColor,
 } from '../../shared/lib/inventory';
 import { Badge, Btn, PageHead } from '../../shared/components/ui';
@@ -20,10 +22,112 @@ import '../../styles/clients.css';
 
 type CreditFilter = 'all' | 'ok' | 'tight' | 'full';
 type ViewMode = 'list' | 'cards';
-type DetailTab = 'resumen' | 'pedidos' | 'credito';
+type DetailTab = 'resumen' | 'pedidos' | 'credito' | 'cuenta';
 type SortMode = 'name' | 'orders' | 'credit';
 
 const PAGE_SIZE = 8;
+const CLIENT_TYPES = ['Corporativo', 'Hotelería', 'Salud', 'Restauración', 'Institucional', 'Retail', 'Industrial', 'Mayorista'];
+
+function ClientFields({
+  client,
+  isAdmin,
+  idPrefix,
+  creditDefault = 0,
+}: {
+  client?: Client;
+  isAdmin: boolean;
+  idPrefix: string;
+  creditDefault?: number;
+}) {
+  return (
+    <div className="form-grid">
+      <div className="field full">
+        <label htmlFor={`${idPrefix}-name`}>Nombre</label>
+        <input id={`${idPrefix}-name`} name="name" defaultValue={client?.name} required />
+      </div>
+      <div className="field">
+        <label htmlFor={`${idPrefix}-tax`}>RUC</label>
+        <input
+          id={`${idPrefix}-tax`}
+          name="taxId"
+          inputMode="numeric"
+          pattern="\d{13}"
+          minLength={13}
+          maxLength={13}
+          defaultValue={client?.taxId}
+          required
+        />
+      </div>
+      <div className="field">
+        <label htmlFor={`${idPrefix}-person`}>Contacto</label>
+        <input id={`${idPrefix}-person`} name="contact" defaultValue={client?.contact} required />
+      </div>
+      <div className="field">
+        <label htmlFor={`${idPrefix}-phone`}>Teléfono</label>
+        <input id={`${idPrefix}-phone`} name="phone" defaultValue={client?.phone} />
+      </div>
+      <div className="field">
+        <label htmlFor={`${idPrefix}-type`}>Tipo de cliente</label>
+        <Select id={`${idPrefix}-type`} name="type" defaultValue={client?.type || 'Corporativo'}>
+          {(client?.type && !CLIENT_TYPES.includes(client.type) ? [client.type, ...CLIENT_TYPES] : CLIENT_TYPES).map((type) => (
+            <option key={type}>{type}</option>
+          ))}
+        </Select>
+      </div>
+      <div className="field">
+        <label htmlFor={`${idPrefix}-city`}>Ciudad de entrega</label>
+        <input id={`${idPrefix}-city`} name="city" defaultValue={client?.city} />
+      </div>
+      <div className="field full">
+        <label htmlFor={`${idPrefix}-address`}>Dirección</label>
+        <input id={`${idPrefix}-address`} name="address" defaultValue={client?.address} required />
+      </div>
+      <div className="field">
+        <label htmlFor={`${idPrefix}-email`}>Correo</label>
+        <input id={`${idPrefix}-email`} name="email" type="email" defaultValue={client?.email} required />
+      </div>
+      <div className="field">
+        <label htmlFor={`${idPrefix}-cadence`}>Reposición cada (días)</label>
+        <input
+          id={`${idPrefix}-cadence`}
+          name="reorderEveryDays"
+          type="number"
+          min={1}
+          step={1}
+          defaultValue={client?.reorderEveryDays ?? ''}
+        />
+      </div>
+      {isAdmin ? (
+        <>
+          <div className="field">
+            <label htmlFor={`${idPrefix}-credit`}>Límite de crédito (USD)</label>
+            <input
+              id={`${idPrefix}-credit`}
+              name="creditLimit"
+              type="number"
+              min={0}
+              step={50}
+              defaultValue={client?.creditLimit ?? creditDefault}
+              required
+            />
+          </div>
+          <div className="field">
+            <label htmlFor={`${idPrefix}-terms`}>Plazo de pago (días)</label>
+            <input
+              id={`${idPrefix}-terms`}
+              name="paymentTermsDays"
+              type="number"
+              min={0}
+              step={1}
+              defaultValue={client?.paymentTermsDays ?? 30}
+              required
+            />
+          </div>
+        </>
+      ) : null}
+    </div>
+  );
+}
 
 function initials(name: string) {
   return name
@@ -46,10 +150,12 @@ export function ClientsPage() {
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
+  const [profileId, setProfileId] = useState<string | null>(null);
   const [creditDraft, setCreditDraft] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
-  const [query, setQuery] = useState('');
+  const [params] = useSearchParams();
+  const [query, setQuery] = useState(() => params.get('q') ?? '');
   const [sector, setSector] = useState('all');
   const [creditFilter, setCreditFilter] = useState<CreditFilter>('all');
   const [view, setView] = useState<ViewMode>('list');
@@ -92,7 +198,7 @@ export function ClientsPage() {
           return false;
         if (creditFilter === 'full' && pct < creditRules.creditTightMaxPct) return false;
         if (!q) return true;
-        return [c.name, c.contact, c.email, c.address, c.id, c.sector]
+        return [c.name, c.contact, c.email, c.address, c.id, c.sector, c.city, c.phone, c.taxId]
           .join(' ')
           .toLowerCase()
           .includes(q);
@@ -174,6 +280,39 @@ export function ClientsPage() {
   };
 
   const editing = editId ? state.clients.find((c) => c.id === editId) : null;
+  const profiling = profileId ? state.clients.find((c) => c.id === profileId) : null;
+
+  const saveProfile = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!profileId || busy) return;
+    setBusy(true);
+    setError('');
+    const data = Object.fromEntries(new FormData(event.currentTarget));
+    const body: Record<string, unknown> = {
+      name: data.name,
+      taxId: data.taxId,
+      contact: data.contact,
+      phone: data.phone,
+      type: data.type,
+      city: data.city,
+      address: data.address,
+      email: data.email,
+      reorderEveryDays: data.reorderEveryDays ? Number(data.reorderEveryDays) : undefined,
+    };
+    if (isAdmin) {
+      body.creditLimit = Number(data.creditLimit);
+      body.paymentTermsDays = Number(data.paymentTermsDays);
+    }
+    try {
+      applyResponse(await api.updateClient(profileId, body));
+      toast('Cliente actualizado.');
+      setProfileId(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'No se pudo actualizar el cliente.');
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const openCredit = (c: Client) => {
     setEditId(c.id);
@@ -291,6 +430,7 @@ export function ClientsPage() {
                             <span>
                               <strong>{c.name}</strong>
                               <small>
+                                {c.taxId ? `${c.taxId} · ` : ''}
                                 {c.type}
                                 {c.contact ? ` · ${c.contact}` : ''}
                               </small>
@@ -462,6 +602,7 @@ export function ClientsPage() {
                 [
                   ['resumen', 'Resumen'],
                   ['pedidos', 'Pedidos'],
+                  ['cuenta', 'Estado de cuenta'],
                   ['credito', 'Crédito'],
                 ] as const
               ).map(([id, label]) => (
@@ -481,6 +622,10 @@ export function ClientsPage() {
               <div className="cli-detail-body">
                 <dl className="cli-info">
                   <div>
+                    <dt>RUC</dt>
+                    <dd>{selected.client.taxId || 'Sin RUC'}</dd>
+                  </div>
+                  <div>
                     <dt>Contacto</dt>
                     <dd>{selected.client.contact}</dd>
                   </div>
@@ -489,8 +634,28 @@ export function ClientsPage() {
                     <dd>{selected.client.email}</dd>
                   </div>
                   <div>
+                    <dt>Teléfono</dt>
+                    <dd>{selected.client.phone || 'Sin teléfono'}</dd>
+                  </div>
+                  <div>
+                    <dt>Ciudad</dt>
+                    <dd>{selected.client.city || 'Sin ciudad'}</dd>
+                  </div>
+                  <div>
                     <dt>Dirección</dt>
                     <dd>{selected.client.address}</dd>
+                  </div>
+                  <div>
+                    <dt>Plazo</dt>
+                    <dd>{selected.client.paymentTermsDays ?? 30} días</dd>
+                  </div>
+                  <div>
+                    <dt>Reposición</dt>
+                    <dd>{selected.client.reorderEveryDays ? `cada ${selected.client.reorderEveryDays} días` : 'Sin cadencia'}</dd>
+                  </div>
+                  <div>
+                    <dt>Por cobrar</dt>
+                    <dd>{money(outstandingReceivable(state, selected.client.id))}</dd>
                   </div>
                 </dl>
 
@@ -531,6 +696,60 @@ export function ClientsPage() {
                     {money(selected.orders.reduce((n, o) => n + orderValue(state, o), 0))}
                   </span>
                 </div>
+              </div>
+            ) : null}
+
+            {tab === 'cuenta' ? (
+              <div className="cli-detail-body">
+                <div className="cli-orders-summary">
+                  <strong>Saldo por cobrar</strong>
+                  <span>{money(outstandingReceivable(state, selected.client.id))}</span>
+                </div>
+                <ul className="cli-order-list">
+                  {(state.invoices ?? [])
+                    .filter((invoice) => invoice.clientId === selected.client.id && invoice.status === 'Emitida')
+                    .map((invoice) => (
+                      <li key={invoice.id}>
+                        <div>
+                          <strong>{invoice.number}</strong>
+                          <small>
+                            {invoice.date} · {invoice.orderId}
+                          </small>
+                        </div>
+                        <div className="cli-order-meta">
+                          <span>{money(invoice.total)}</span>
+                          <small>saldo {money(invoiceBalance(state, invoice.id))}</small>
+                        </div>
+                      </li>
+                    ))}
+                  {(state.creditNotes ?? [])
+                    .filter((note) => note.clientId === selected.client.id && note.status === 'Emitida')
+                    .map((note) => (
+                      <li key={note.id}>
+                        <div>
+                          <strong>{note.number}</strong>
+                          <small>{note.date} · nota de crédito</small>
+                        </div>
+                        <span>-{money(note.total)}</span>
+                      </li>
+                    ))}
+                  {(state.customerPayments ?? [])
+                    .filter((payment) => payment.clientId === selected.client.id)
+                    .map((payment) => (
+                      <li key={payment.id}>
+                        <div>
+                          <strong>{payment.reference}</strong>
+                          <small>
+                            {payment.date} · {payment.method}
+                          </small>
+                        </div>
+                        <span>-{money(payment.amount)}</span>
+                      </li>
+                    ))}
+                </ul>
+                {(state.invoices ?? []).some((invoice) => invoice.clientId === selected.client.id) ? null : (
+                  <p className="cli-credit-note">Todavía no hay facturas para este cliente.</p>
+                )}
               </div>
             ) : null}
 
@@ -615,7 +834,10 @@ export function ClientsPage() {
               <button
                 type="button"
                 className="cli-text-link"
-                onClick={() => openCredit(selected.client)}
+                onClick={() => {
+                  setProfileId(selected.client.id);
+                  setError('');
+                }}
               >
                 Editar cliente
               </button>
@@ -639,48 +861,29 @@ export function ClientsPage() {
           }
         >
           <form id="client-form" onSubmit={submit}>
-            <div className="form-grid">
-              <div className="field full">
-                <label htmlFor="cl-name">Nombre</label>
-                <input id="cl-name" name="name" required />
-              </div>
-              <div className="field">
-                <label htmlFor="cl-person">Contacto</label>
-                <input id="cl-person" name="contact" required />
-              </div>
-              <div className="field">
-                <label htmlFor="cl-type">Sector</label>
-                <Select id="cl-type" name="type">
-                  <option>Corporativo</option>
-                  <option>Hotelería</option>
-                  <option>Salud</option>
-                  <option>Restauración</option>
-                  <option>Industrial</option>
-                </Select>
-              </div>
-              <div className="field full">
-                <label htmlFor="cl-address">Dirección</label>
-                <input id="cl-address" name="address" required />
-              </div>
-              <div className="field">
-                <label htmlFor="cl-email">Correo</label>
-                <input id="cl-email" name="email" type="email" required />
-              </div>
-              <div className="field">
-                <label htmlFor="cl-credit">Límite de crédito (USD)</label>
-                <input
-                  id="cl-credit"
-                  name="creditLimit"
-                  type="number"
-                  min={0}
-                  step={50}
-                  defaultValue={rules.defaultCreditLimit}
-                  readOnly={!isAdmin}
-                  required
-                />
-                {!isAdmin ? <small>Se asigna el cupo por defecto. Administración puede ajustarlo después.</small> : null}
-              </div>
-            </div>
+            <ClientFields idPrefix="cl" isAdmin={isAdmin} creditDefault={rules.defaultCreditLimit} />
+            {!isAdmin ? <small>El cupo y el plazo los asigna administración.</small> : null}
+            {error ? <div className="form-error visible">{error}</div> : null}
+          </form>
+        </Modal>
+      ) : null}
+
+      {profiling ? (
+        <Modal
+          title={`Editar · ${profiling.name}`}
+          subtitle="RUC, entrega, contacto y, si eres administración, cupo y plazo."
+          onClose={() => setProfileId(null)}
+          footer={
+            <ModalActions
+              onCancel={() => setProfileId(null)}
+              submitLabel={busy ? 'Guardando…' : 'Guardar'}
+              formId="client-edit-form"
+              icon="save"
+            />
+          }
+        >
+          <form id="client-edit-form" onSubmit={(event) => void saveProfile(event)}>
+            <ClientFields key={profiling.id} idPrefix="edit" client={profiling} isAdmin={isAdmin} />
             {error ? <div className="form-error visible">{error}</div> : null}
           </form>
         </Modal>

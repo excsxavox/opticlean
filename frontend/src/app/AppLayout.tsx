@@ -12,7 +12,7 @@ import { transition } from '../shared/motion/presets';
 import { Sidebar } from './shell/Sidebar';
 import { Topbar } from './shell/Topbar';
 import { PageSkeleton } from './shell/PageSkeleton';
-import { breadcrumbsFor, fallbackMenu, titleFor, type MenuSection } from './navigation';
+import { breadcrumbsFor, fallbackMenu, homeForRole, menuForRole, roleAllowsPath, titleFor, type MenuSection } from './navigation';
 
 const ROUTE_SKELETON_MS = 160;
 
@@ -77,12 +77,15 @@ export function AppLayout() {
   const [assistantAnswer, setAssistantAnswer] = useState<string[]>([]);
   const [notifyOpen, setNotifyOpen] = useState(false);
   const [menuSections, setMenuSections] = useState<MenuSection[]>(() =>
-    user?.role === 'admin'
-      ? fallbackMenu
-      : fallbackMenu.map((s) => ({
-          ...s,
-          items: s.items.filter((i) => i.path !== '/usuarios'),
-        })),
+    menuForRole(
+      user?.role === 'admin'
+        ? fallbackMenu
+        : fallbackMenu.map((s) => ({
+            ...s,
+            items: s.items.filter((i) => i.path !== '/usuarios'),
+          })),
+      user?.role,
+    ),
   );
 
   useEffect(() => {
@@ -130,7 +133,7 @@ export function AppLayout() {
             }))
             .filter((s) => s.items.length > 0);
         }
-        setMenuSections(sections);
+        setMenuSections(menuForRole(sections, user?.role));
       })
       .catch(() => {
         /* mantiene menú fallback */
@@ -146,6 +149,10 @@ export function AppLayout() {
   useEffect(() => {
     document.title = `${titleFor(path, menuSections)} · OPTICLEAN AI`;
   }, [path, menuSections]);
+
+  useEffect(() => {
+    if (!roleAllowsPath(user?.role, path)) navigate(homeForRole(user?.role), { replace: true });
+  }, [path, user?.role, navigate]);
 
   // Cierra el menú móvil al navegar.
   useEffect(() => setMobileOpen(false), [path]);
@@ -210,12 +217,36 @@ export function AppLayout() {
           onToggleSidebar={toggleCollapsed}
           onOpenMobileMenu={() => setMobileOpen(true)}
           onNotifications={() => setNotifyOpen(true)}
+          onSearch={(query) => {
+            const q = query.trim().toLowerCase();
+            if (!q) {
+              navigate('/inventario');
+              return;
+            }
+            const orderHit = state.orders.some(
+              (order) => order.id.toLowerCase() === q || (q.startsWith('ped') && order.id.toLowerCase().includes(q)),
+            );
+            const clientHit = state.clients.some((item) =>
+              [item.name, item.taxId, item.email, item.contact, item.phone].some((value) => value?.toLowerCase().includes(q)),
+            );
+            const supplierHit = (state.suppliers ?? []).some((item) =>
+              [item.name, item.taxId, item.email, item.contact].some((value) => value?.toLowerCase().includes(q)),
+            );
+            const productHit = state.products.some((item) =>
+              [item.name, item.sku, item.id].some((value) => value?.toLowerCase().includes(q)),
+            );
+            const encoded = encodeURIComponent(query.trim());
+            if (orderHit) navigate(`/pedidos?q=${encoded}`);
+            else if (supplierHit && !clientHit && !productHit) navigate(`/proveedores?q=${encoded}`);
+            else if (clientHit && !productHit) navigate(`/clientes?q=${encoded}`);
+            else navigate(`/inventario?q=${encoded}`);
+          }}
         />
         <main className="page">
           <PageFrame />
           <footer className="page-footer">
             <span>OPTICLEAN AI · Operación conectada</span>
-            <span>Datos de demostración · Persistencia en servidor local</span>
+            <span>{state.demo === false ? 'Datos de la empresa' : 'Datos de demostración'} · Persistencia en servidor local</span>
           </footer>
         </main>
       </div>

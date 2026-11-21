@@ -6,6 +6,11 @@ export const activeWarehouseId = (s: AppState) =>
 export const scopedLots = (s: AppState) =>
   s.lots.filter((l) => (l.warehouseId ?? 'WH-QT-01') === activeWarehouseId(s));
 
+export function lotsForScope(s: AppState, warehouseId: string | 'all') {
+  if (warehouseId === 'all') return s.lots;
+  return s.lots.filter((lot) => (lot.warehouseId ?? 'WH-QT-01') === warehouseId);
+}
+
 const HELD_LOCS = new Set(['CUARENTENA', 'TRANSITO']);
 
 export const stock = (s: AppState, id: string) =>
@@ -48,9 +53,11 @@ export function daysUntil(expiry: string, today = todayEc()) {
 /** Misma regla que el backend: vendible, sin retención, no vencido y con vida útil mínima. */
 export function isLotSellable(s: AppState, lot: Lot, today = todayEc()) {
   if (HELD_LOCS.has(lot.loc) || lot.onHold || lot.qty <= 0) return false;
+  const item = product(s, lot.productId);
+  if (item?.perishable === false) return true;
   const days = daysUntil(lot.expiry, today);
   if (days == null || days < 0) return false;
-  return days >= (product(s, lot.productId)?.minShelfLifeDays ?? 0);
+  return days >= (item?.minShelfLifeDays ?? 0);
 }
 
 export const sellableStock = (s: AppState, id: string) =>
@@ -60,9 +67,33 @@ export const sellableStock = (s: AppState, id: string) =>
 
 export const available = (s: AppState, id: string) => sellableStock(s, id) - reserved(s, id);
 
-/** FIFO: entró antes primero; a igual ingreso, vence antes. */
+const heldLoc = (loc: string) => HELD_LOCS.has(loc);
+
+export function stockIn(s: AppState, id: string, warehouseId: string | 'all') {
+  return lotsForScope(s, warehouseId)
+    .filter((lot) => lot.productId === id && !heldLoc(lot.loc))
+    .reduce((n, lot) => n + lot.qty, 0);
+}
+
+export function sellableIn(s: AppState, id: string, warehouseId: string | 'all') {
+  return lotsForScope(s, warehouseId)
+    .filter((lot) => lot.productId === id && isLotSellable(s, lot))
+    .reduce((n, lot) => n + lot.qty, 0);
+}
+
+export function availableIn(s: AppState, id: string, warehouseId: string | 'all') {
+  return sellableIn(s, id, warehouseId) - reserved(s, id);
+}
+
+/** FEFO: vence antes primero. Sin fecha va al final. Empate por ingreso. */
+function expiryKey(expiry?: string) {
+  return /^\d{4}-\d{2}-\d{2}/.test(expiry ?? '') ? expiry!.slice(0, 10) : '9999-12-31';
+}
+
 export const fefoCompare = (a: Lot, b: Lot) =>
-  (a.receivedAt ?? '').localeCompare(b.receivedAt ?? '') || a.expiry.localeCompare(b.expiry);
+  expiryKey(a.expiry).localeCompare(expiryKey(b.expiry)) ||
+  (a.receivedAt ?? '').localeCompare(b.receivedAt ?? '') ||
+  a.loc.localeCompare(b.loc);
 
 /** Lotes vendibles de un producto en orden de salida (1 = sale primero). */
 export const exitOrder = (s: AppState, productId: string) =>

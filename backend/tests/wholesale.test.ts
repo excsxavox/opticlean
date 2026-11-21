@@ -104,6 +104,7 @@ test('CSV purchase import previews rows and does not invent an expiry', () => {
   const committed = commitImport(s, {
     kind: 'purchase',
     partyName: 'Química Andina',
+    partyTaxId: '1790000001001',
     docNumber: 'OC-CSV-1',
     rows: preview.rows,
   });

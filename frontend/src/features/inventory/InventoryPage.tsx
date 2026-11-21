@@ -78,7 +78,6 @@ export function InventoryWorkspace({
   const [view, setView] = useState<'table' | 'lines'>('table');
   const [visibleCount, setVisibleCount] = useState(PAGE_CHUNK);
   const [whBusy, setWhBusy] = useState(false);
-  const inspector = useRef<HTMLElement>(null);
   const catalogRef = useRef<HTMLElement>(null);
   const createRef = useRef<HTMLDivElement>(null);
 
@@ -159,14 +158,7 @@ export function InventoryWorkspace({
   };
   const resetFilters = () =>
     updateParams({ q: '', linea: '', proveedor: '', estado: '', tipo: '' });
-  const selectProduct = (id: string) => {
-    setSelectedId(id);
-    if (window.matchMedia('(max-width: 1350px)').matches) {
-      requestAnimationFrame(() =>
-        inspector.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }),
-      );
-    }
-  };
+  const selectProduct = (id: string) => setSelectedId(id);
   const receive = (id: string) => navigate('/recepcion/nueva', { state: { productId: id } });
   const purchase = (id: string, qty?: number) =>
     navigate('/compras', {
@@ -364,7 +356,7 @@ export function InventoryWorkspace({
           icon="alert"
           tone={attention.length ? 'warning' : 'default'}
           value={attention.length}
-          caption={`${attentionFinished} productos · ${attentionRaw} insumos`}
+          caption={`${attentionFinished} ${attentionFinished === 1 ? 'producto' : 'productos'} · ${attentionRaw} ${attentionRaw === 1 ? 'insumo' : 'insumos'}`}
           active={status === 'attention'}
           onClick={() => updateParams({ estado: status === 'attention' ? '' : 'attention' })}
         />
@@ -375,7 +367,7 @@ export function InventoryWorkspace({
           value={expiringProducts.length}
           caption={
             expiry.length
-              ? `${expiredCount} vencido${expiredCount === 1 ? '' : 's'} · ${soonCount} ≤ 90 días`
+              ? `${expiredCount} ${expiredCount === 1 ? 'lote vencido' : 'lotes vencidos'} · ${soonCount} ${soonCount === 1 ? 'lote' : 'lotes'} en 90 días`
               : 'Sin lotes en 90 días'
           }
           active={status === 'expiring'}
@@ -404,7 +396,7 @@ export function InventoryWorkspace({
                     expiry[0].days < 0 ? 'vencido' : `vence en ${expiry[0].days} días`
                   }`
                 : 'Revisa lotes antes de despachar.'}{' '}
-              Al preparar se usa FIFO (fecha de entrada).
+              Al preparar se usa FEFO: primero el lote que vence antes.
             </span>
           </div>
           <button
@@ -458,7 +450,7 @@ export function InventoryWorkspace({
         />
       ) : null}
 
-      <div className={`inv-workspace ${selected ? 'has-selection' : ''}`}>
+      <div className="inv-workspace">
         <section ref={catalogRef} className="inv-browser" aria-labelledby="inv-products-heading">
           <div className="inv-browser-heading">
             <h2 id="inv-products-heading">
@@ -830,27 +822,24 @@ export function InventoryWorkspace({
             )
           ) : null}
         </section>
-
-        {selected ? (
-          <aside ref={inspector} className="inv-inspector" aria-label="Detalle del producto">
-            <InventoryDetailPanel
-              key={selected.product.id}
-              state={state}
-              row={selected}
-              onClose={() => setSelectedId(null)}
-              onEdit={() => setEditProduct(selected.product.id)}
-              onReceive={() => receive(selected.product.id)}
-              onPurchase={() =>
-                purchase(selected.product.id, selected.shortage || selected.product.min)
-              }
-              onLocate={(loc) => locate(selected.product.id, loc)}
-              onTrace={() => navigate('/trazabilidad', { state: { q: selected.product.id } })}
-              onSelectRelated={selectProduct}
-              onOpenPurchase={(id) => navigate('/compras', { state: { focus: id } })}
-            />
-          </aside>
-        ) : null}
       </div>
+
+      {selected && editProduct === null ? (
+        <InventoryDetailPanel
+          state={state}
+          row={selected}
+          onClose={() => setSelectedId(null)}
+          onEdit={() => setEditProduct(selected.product.id)}
+          onReceive={() => receive(selected.product.id)}
+          onPurchase={() =>
+            purchase(selected.product.id, selected.shortage || selected.product.min)
+          }
+          onLocate={(loc) => locate(selected.product.id, loc)}
+          onTrace={() => navigate('/trazabilidad', { state: { q: selected.product.id } })}
+          onSelectRelated={selectProduct}
+          onOpenPurchase={(id) => navigate('/compras', { state: { focus: id } })}
+        />
+      ) : null}
 
       {editProduct !== null ? (
         <InventoryProductForm
