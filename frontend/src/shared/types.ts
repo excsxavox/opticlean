@@ -18,6 +18,7 @@ export type HazardClass =
 export type ProductPack = { code: string; label: string; units: number };
 
 export type Product = {
+  barcode?: string;
   id: string;
   sku: string;
   name: string;
@@ -143,6 +144,11 @@ export type OrderPick = OrderLine & { batch?: string; loc?: string; expiry?: str
 export type OrderShortage = { productId: string; qty: number };
 
 export type Order = {
+  /** Unidades contadas al empacar, por `producto|lote`. */
+  packCounts?: Record<string, number>;
+  /** Empaque cerrado: todas las unidades están en bultos pesados. */
+  packing?: { closedAt: string; closedBy?: string };
+  loadNote?: string;
   id: string;
   clientId: string;
   status: string;
@@ -276,13 +282,25 @@ export type CustomerQuote = {
   orderId?: string;
 };
 
+export type ParcelContent = { productId: string; batch: string; qty: number };
+
+export type ParcelDims = { l: number; w: number; h: number };
+
 export type Parcel = {
   id: string;
   orderId: string;
   weightKg: number;
   volumeM3: number;
   packedAt: string;
+  contents?: ParcelContent[];
+  boxCode?: string;
+  dims?: ParcelDims;
+  packedBy?: string;
+  weightNote?: string;
+  tareKg?: number;
 };
+
+export type PackingBox = { code: string; label: string; dims: ParcelDims; tareKg: number };
 
 export type SupplierOffering = {
   id: string;
@@ -323,6 +341,9 @@ export type BusinessRules = {
   creditTightMaxPct: number;
   defaultCreditLimit: number;
   separateExpiryLots: boolean;
+  packTolerancePct: number;
+  loadMinFillPct: number;
+  requirePackingBeforeDispatch: boolean;
 };
 
 /** Plantilla reutilizable de estimación de km / ETA / costo de envío. */
@@ -336,6 +357,7 @@ export type ShippingCostTemplate = {
 };
 
 export type Settings = {
+  packingBoxes?: PackingBox[];
   company: string;
   warehouse: string;
   operator: string;
@@ -414,6 +436,7 @@ export type CreditNote = {
 };
 
 export type DeliveryGuide = {
+  packages?: { count: number; weightKg: number; parcelIds: string[] };
   id: string;
   number: string;
   accessKey: string;

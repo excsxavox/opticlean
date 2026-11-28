@@ -45,6 +45,8 @@ export type Product = {
   /** Nombre de la unidad en la que se cuenta el stock y se vende. */
   stockUnit?: string;
   packs?: ProductPack[];
+  /** Código de barras del empaque unitario (EAN, UPC o interno). */
+  barcode?: string;
   /** Días mínimos de vida útil para poder vender el lote. */
   minShelfLifeDays?: number;
   /** false = no caduca (papel, fundas). Si falta, el lote necesita fecha. */
@@ -188,6 +190,12 @@ export type Order = {
   vehicle?: string;
   /** Placa del camión donde está cargado, antes de despachar. */
   stagedPlate?: string;
+  /** Empaque cerrado: todas las unidades están en bultos pesados. */
+  packing?: { closedAt: string; closedBy?: string };
+  /** Unidades contadas al empacar, por `producto|lote`. */
+  packCounts?: Record<string, number>;
+  /** Motivo de cargarlo en un camión fuera de su zona. */
+  loadNote?: string;
   picks?: OrderPick[];
   incident?: string;
   notes?: string;
@@ -345,13 +353,30 @@ export type CustomerQuote = {
   orderId?: string;
 };
 
+export type ParcelContent = { productId: string; batch: string; qty: number };
+
+/** Medidas en centímetros. */
+export type ParcelDims = { l: number; w: number; h: number };
+
 export type Parcel = {
   id: string;
   orderId: string;
+  /** 0 = todavía sin pesar. */
   weightKg: number;
   volumeM3: number;
   packedAt: string;
+  /** Falta en los bultos registrados antes de existir el detalle. */
+  contents?: ParcelContent[];
+  boxCode?: string;
+  dims?: ParcelDims;
+  packedBy?: string;
+  /** Motivo cuando el peso real no coincide con el del catálogo. */
+  weightNote?: string;
+  /** Peso de la caja vacía al crear el bulto: editar el catálogo no cambia bultos ya armados. */
+  tareKg?: number;
 };
+
+export type PackingBox = { code: string; label: string; dims: ParcelDims; tareKg: number };
 
 export type SupplierOffering = {
   id: string;
@@ -401,6 +426,12 @@ export type BusinessRules = {
   defaultCreditLimit: number;
   /** Una casilla no mezcla lotes con distinta caducidad. */
   separateExpiryLots: boolean;
+  /** Diferencia de peso del bulto (%) a partir de la cual se pide un motivo. */
+  packTolerancePct: number;
+  /** Llenado mínimo del camión (%); debajo solo avisa. */
+  loadMinFillPct: number;
+  /** No se despacha un pedido sin el empaque cerrado. */
+  requirePackingBeforeDispatch: boolean;
 };
 
 /** Plantilla reutilizable de estimación de km / ETA / costo de envío. */
@@ -414,6 +445,8 @@ export type ShippingCostTemplate = {
 };
 
 export type Settings = {
+  /** Cajas disponibles en empaque; sin esto se usan las de partida. */
+  packingBoxes?: PackingBox[];
   company: string;
   warehouse: string;
   operator: string;
@@ -536,6 +569,8 @@ export type DeliveryGuide = {
   plate?: string;
   driver?: string;
   lines: Array<{ productId: string; qty: number; batch?: string }>;
+  /** Bultos del empaque cerrado que viajan con la guía. */
+  packages?: { count: number; weightKg: number; parcelIds: string[] };
   status: 'Emitida' | 'Anulada';
 };
 

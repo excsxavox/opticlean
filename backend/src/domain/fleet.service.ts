@@ -20,6 +20,29 @@ export const activeVehicles = (s: AppState) => ensureVehicles(s).filter((v) => v
 export const vehicleByPlate = (s: AppState, plate: string) =>
   ensureVehicles(s).find((v) => v.plate.toUpperCase() === plate.trim().toUpperCase());
 
+/** Copia al estado las fichas de la flota de Logística, para que carga y despacho las reconozcan. */
+export function syncFleet(
+  s: AppState,
+  trucks: Array<{ plate: string; label: string; city?: string; driver?: string; maxKg: number; maxM3: number; costPerKm: number }>,
+) {
+  const vehicles = ensureVehicles(s);
+  for (const truck of trucks) {
+    const data = {
+      plate: truck.plate.trim().toUpperCase(),
+      label: truck.label,
+      city: truck.city ?? '',
+      driver: truck.driver ?? '',
+      maxKg: truck.maxKg,
+      maxM3: truck.maxM3,
+      costPerKm: truck.costPerKm,
+      active: true,
+    };
+    const current = vehicles.find((v) => v.plate.toUpperCase() === data.plate);
+    if (current) Object.assign(current, data);
+    else vehicles.push({ id: `FL-${data.plate}`, ...data });
+  }
+}
+
 const ACTIVE_ROUTE = ['En ruta', 'Incidencia'];
 
 function cleanText(value: unknown, field: string) {

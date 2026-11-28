@@ -30,7 +30,7 @@ type Tab = 'pendientes' | 'listos' | 'camiones';
 export function DispatchPage({ state, user, onRefresh }: Props) {
   const [tab, setTab] = useState<Tab>('listos');
   const [fleet, setFleet] = useState<Truck[]>(DEFAULT_FLEET);
-  const [stagedByTruck, setStagedByTruck] = useState<Record<string, string[]>>({});
+  const [draftStaged, setDraftStaged] = useState<Record<string, string[]>>({});
   const [selectedTruck, setSelectedTruck] = useState(DEFAULT_FLEET[0]?.id ?? '');
   const [busy, setBusy] = useState(false);
   const [aiBusy, setAiBusy] = useState(false);
@@ -47,6 +47,23 @@ export function DispatchPage({ state, user, onRefresh }: Props) {
       })
       .catch(() => {});
   }, []);
+
+  /** Carga = la confirmada en Empaque (guardada) más lo que se arma aquí. */
+  const stagedByTruck = useMemo(() => {
+    const saved = state.orders
+      .filter((o) => o.status === 'Preparado' && o.stagedPlate)
+      .sort((a, b) => (a.stopOrder ?? 0) - (b.stopOrder ?? 0));
+    const savedIds = new Set(saved.map((o) => o.id));
+    const out: Record<string, string[]> = {};
+    for (const t of fleet) {
+      const ids = saved.filter((o) => o.stagedPlate?.toUpperCase() === t.plate.toUpperCase()).map((o) => o.id);
+      const draft = (draftStaged[t.id] ?? []).filter(
+        (id) => !savedIds.has(id) && state.orders.some((o) => o.id === id && o.status === 'Preparado'),
+      );
+      if (ids.length || draft.length) out[t.id] = [...ids, ...draft];
+    }
+    return out;
+  }, [state.orders, fleet, draftStaged]);
 
   const stagedIds = useMemo(() => new Set(Object.values(stagedByTruck).flat()), [stagedByTruck]);
 
@@ -95,7 +112,7 @@ export function DispatchPage({ state, user, onRefresh }: Props) {
       return;
     }
     setError('');
-    setStagedByTruck((prev) => {
+    setDraftStaged((prev) => {
       const next: Record<string, string[]> = {};
       for (const [tid, list] of Object.entries(prev)) {
         next[tid] = list.filter((id) => id !== orderId);
@@ -107,11 +124,38 @@ export function DispatchPage({ state, user, onRefresh }: Props) {
     setMsg('Pedido cargado');
   };
 
-  const unstage = (truckId: string, orderId: string) => {
-    setStagedByTruck((prev) => ({
-      ...prev,
-      [truckId]: (prev[truckId] ?? []).filter((id) => id !== orderId),
-    }));
+  const unstage = async (truckId: string, orderId: string) => {
+    const saved = state.orders.find((o) => o.id === orderId && o.stagedPlate);
+    if (!saved) {
+      setDraftStaged((prev) => ({
+        ...prev,
+        [truckId]: (prev[truckId] ?? []).filter((id) => id !== orderId),
+      }));
+      return;
+    }
+    const plate = saved.stagedPlate!;
+    const rest = state.orders
+      .filter((o) => o.status === 'Preparado' && o.stagedPlate === plate && o.id !== orderId)
+      .sort((a, b) => (a.stopOrder ?? 0) - (b.stopOrder ?? 0));
+    setBusy(true);
+    setError('');
+    try {
+      if (rest.length) {
+        await api.confirmLoad({
+          plate,
+          orderIds: rest.map((o) => o.id),
+          reason: rest.find((o) => o.loadNote)?.loadNote,
+        });
+      } else {
+        await api.releaseLoad(plate);
+      }
+      await onRefresh();
+      setMsg(`${orderId} salió de la carga`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'No se pudo quitar de la carga');
+    } finally {
+      setBusy(false);
+    }
   };
 
   const sendTruck = async (truckId: string) => {
@@ -123,7 +167,7 @@ export function DispatchPage({ state, user, onRefresh }: Props) {
     try {
       await api.dispatch(ids, t.plate);
       await onRefresh();
-      setStagedByTruck((prev) => ({ ...prev, [truckId]: [] }));
+      setDraftStaged((prev) => ({ ...prev, [truckId]: [] }));
       setMsg(`${t.label} enviado`);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo enviar');
@@ -156,7 +200,7 @@ export function DispatchPage({ state, user, onRefresh }: Props) {
         })),
       });
       const plan = res.plan;
-      setStagedByTruck((prev) => {
+      setDraftStaged((prev) => {
         const next = { ...prev };
         for (const [truckId, ids] of Object.entries(plan.byTruck)) {
           next[truckId] = [...new Set([...(next[truckId] ?? []), ...ids])];
@@ -347,7 +391,7 @@ export function DispatchPage({ state, user, onRefresh }: Props) {
                         {sectorOf(state, o)} · {orderWeight(state, o).toFixed(1)} kg
                       </small>
                     </div>
-                    <button type="button" className="btn ghost small" onClick={() => unstage(truck.id, o.id)}>
+                    <button type="button" className="btn ghost small" disabled={busy} onClick={() => void unstage(truck.id, o.id)}>
                       Quitar
                     </button>
                   </li>

@@ -1,3 +1,4 @@
+import { assertRuc } from './ruc.js';
 import type { AppState, Supplier } from './types.js';
 
 export function ensureSuppliers(s: AppState) {
@@ -13,7 +14,7 @@ function clean(body: Partial<Supplier>, current?: Supplier): Supplier {
   const email = (body.email ?? current?.email ?? '').trim();
   if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new Error('El correo del proveedor no es válido.');
   const taxId = String(body.taxId ?? current?.taxId ?? '').replace(/\D/g, '');
-  if (!/^\d{13}$/.test(taxId)) throw new Error('El RUC del proveedor debe tener 13 dígitos.');
+  assertRuc(taxId, 'RUC del proveedor', current?.taxId);
   return {
     id: current?.id ?? '',
     name,

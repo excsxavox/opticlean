@@ -1,0 +1,147 @@
+/* Lista de cotizaciones (features/quotes/QuotesPage.tsx) */
+.qt-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--slate-200);
+}
+.qt-toolbar .qt-search {
+  flex: 1 1 240px;
+  max-width: 360px;
+}
+
+.qt-table {
+  width: 100%;
+}
+.qt-table td {
+  vertical-align: middle;
+}
+.qt-table td small {
+  display: block;
+  margin-top: 3px;
+  color: var(--slate-600);
+  font-size: var(--text-sm);
+}
+.qt-table td small.qt-soon {
+  color: var(--amber-800);
+  font-weight: var(--weight-medium);
+}
+.qt-table .qt-num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.qt-table .qt-actions-col {
+  text-align: right;
+}
+.qt-number {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--color-primary);
+  font: inherit;
+  font-weight: var(--weight-bold);
+  cursor: pointer;
+}
+.qt-number:hover {
+  text-decoration: underline;
+}
+
+.qt-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+}
+/* Mantiene alineados los botones en las filas sin menú. */
+.qt-table .qt-actions {
+  flex-wrap: nowrap;
+}
+.qt-actions-spacer {
+  width: 32px;
+}
+
+.qt-panel .qt-pagination {
+  padding: 12px 16px;
+}
+
+.qt-detail {
+  display: grid;
+  gap: 14px;
+}
+.qt-detail-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  color: var(--slate-600);
+  font-size: var(--text-sm);
+}
+.qt-lines {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--slate-200);
+  border-radius: var(--radius-xl);
+  overflow: hidden;
+}
+.qt-lines li {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 12px;
+  border-bottom: 1px solid var(--slate-100);
+}
+.qt-lines li:last-child {
+  border-bottom: 0;
+}
+.qt-lines strong {
+  display: block;
+  font-size: var(--text-base);
+}
+.qt-lines small {
+  display: block;
+  margin-top: 2px;
+  color: var(--slate-600);
+  font-size: var(--text-sm);
+}
+.qt-totals {
+  display: grid;
+  gap: 6px;
+  width: min(260px, 100%);
+  margin: 0 0 0 auto;
+  font-variant-numeric: tabular-nums;
+}
+.qt-totals > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+.qt-totals dt {
+  color: var(--slate-600);
+}
+.qt-totals dd {
+  margin: 0;
+}
+.qt-totals .qt-total-row {
+  padding-top: 8px;
+  border-top: 1px solid var(--slate-200);
+  color: var(--slate-900);
+  font-size: var(--text-md);
+  font-weight: var(--weight-bold);
+}
+.qt-totals .qt-total-row dt {
+  color: inherit;
+}
+.qt-note {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: var(--radius-lg);
+  background: var(--slate-50);
+  color: var(--slate-700);
+  font-size: var(--text-sm);
+}

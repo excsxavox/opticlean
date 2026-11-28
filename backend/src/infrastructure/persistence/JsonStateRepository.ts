@@ -3,10 +3,8 @@ import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { StateRepository } from '../../application/ports/StateRepository.js';
-import { seed } from '../../domain/seed.js';
 import { migrateState } from '../../domain/state-migrate.js';
-import { emptyState } from '../../domain/tenant-state.js';
-import { getCompany } from '../../domain/admin.service.js';
+import { initialStateFor } from './initial-state.js';
 import { currentCompanyId, DEFAULT_COMPANY_ID } from '../../domain/request-context.js';
 import type { AppState } from '../../domain/types.js';
 
@@ -42,8 +40,7 @@ export class JsonStateRepository implements StateRepository {
   }
 
   private initialFor(companyId: string): AppState {
-    if (companyId === DEFAULT_COMPANY_ID && process.env.OPTICLEAN_DEMO_DATA !== '0') return seed();
-    return emptyState(getCompany(companyId)?.name);
+    return initialStateFor(companyId);
   }
 
   async load(): Promise<AppState> {

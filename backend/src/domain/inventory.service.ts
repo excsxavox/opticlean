@@ -138,6 +138,21 @@ export const creditUsed = (s: AppState, clientId: string) => {
     .reduce((n, o) => n + orderValue(s, o), 0);
 };
 
+/** Peso y volumen de un pedido: lo medido en sus bultos si el empaque está cerrado; si no, el catálogo. */
+export function orderLoad(s: AppState, o: Order) {
+  const parcels = o.packing ? (s.parcels ?? []).filter((parcel) => parcel.orderId === o.id) : [];
+  if (parcels.length) {
+    return {
+      kg: parcels.reduce((sum, parcel) => sum + parcel.weightKg, 0),
+      m3: parcels.reduce((sum, parcel) => sum + parcel.volumeM3, 0),
+      packed: true,
+    };
+  }
+  const m3 =
+    expandedDemand(s, o).reduce((sum, line) => sum + line.qty * (product(s, line.productId)?.volume ?? 0), 0) / 1000;
+  return { kg: orderWeight(s, o), m3, packed: false };
+}
+
 export function addEvent(
   s: AppState,
   type: string,
@@ -427,6 +442,51 @@ export function createOrder(
   return o;
 }
 
+/**
+ * Edita un pedido que aún no se prepara. Se retira de la lista, se valida de nuevo
+ * (stock, cupo, cartera) como si fuera nuevo y se conserva número, fecha y origen.
+ */
+export function editOrder(
+  s: AppState,
+  orderId: string,
+  data: { clientId?: string; lines?: OrderLine[]; kits?: OrderKit[]; priority?: string; notes?: string },
+) {
+  const index = s.orders.findIndex((o) => o.id === orderId);
+  if (index < 0) throw new Error('Pedido no encontrado.');
+  const old = s.orders[index];
+  if (old.status !== 'Por preparar') {
+    throw new Error('Solo se edita un pedido que todavía no se prepara. Cancélalo y crea uno nuevo.');
+  }
+  if (old.assignedToUserId) throw new Error('Quita la asignación del bodeguero antes de editar el pedido.');
+  if (s.invoices?.some((invoice) => invoice.orderId === orderId && invoice.status === 'Emitida')) {
+    throw new Error('El pedido tiene factura emitida. Emite una nota de crédito.');
+  }
+  s.orders.splice(index, 1);
+  try {
+    const next = createOrder(s, {
+      clientId: data.clientId ?? old.clientId,
+      lines: (data.lines ?? old.lines).map((l) => ({ productId: l.productId, qty: Number(l.qty) })),
+      kits: data.kits ?? old.kits,
+      priority: data.priority ?? old.priority,
+      notes: data.notes ?? old.notes,
+      channel: old.channel,
+    });
+    s.orders.shift();
+    Object.assign(old, {
+      clientId: next.clientId,
+      lines: next.lines,
+      kits: next.kits,
+      priority: next.priority,
+      notes: next.notes,
+    });
+    s.orders.splice(index, 0, old);
+    return old;
+  } catch (e) {
+    s.orders.splice(index, 0, old);
+    throw e;
+  }
+}
+
 export type PickPlanLine = Lot & { qty: number };
 
 /** Fecha de entrada: receivedAt → recepción del lote → caducidad como último recurso. */
@@ -519,13 +579,9 @@ export function assertFitsVehicle(
   if (!registered) throw new Error('El vehículo no está registrado en la flota.');
   const maxKg = Number.isFinite(limits?.maxKg) ? Number(limits!.maxKg) : registered.maxKg;
   const maxM3 = Number.isFinite(limits?.maxM3) ? Number(limits!.maxM3) : registered.maxM3;
-  const totalKg = orders.reduce((n, o) => n + orderWeight(s, o), 0);
-  const totalM3 =
-    orders.reduce(
-      (n, o) =>
-        n + expandedDemand(s, o).reduce((v, l) => v + l.qty * (product(s, l.productId)?.volume ?? 0), 0),
-      0,
-    ) / 1000;
+  const loads = orders.map((o) => orderLoad(s, o));
+  const totalKg = loads.reduce((n, load) => n + load.kg, 0);
+  const totalM3 = loads.reduce((n, load) => n + load.m3, 0);
   if (totalKg > maxKg + 0.01) {
     throw new Error(`La carga supera la capacidad de ${Math.round(maxKg)} kg del vehículo.`);
   }
@@ -547,6 +603,10 @@ export function dispatch(
   const missingPick = orders.find((o) => !o.picks?.length);
   if (missingPick) {
     throw new Error(`Prepara ${missingPick.id} antes de despachar: falta el lote de salida.`);
+  }
+  const elsewhere = orders.find((o) => o.stagedPlate && o.stagedPlate.toUpperCase() !== vehicle.trim().toUpperCase());
+  if (elsewhere) {
+    throw new Error(`${elsewhere.id} está cargado en ${elsewhere.stagedPlate}. Retira esa carga antes de enviarlo en otro camión.`);
   }
   const current = s.orders.filter(
     (o) => o.vehicle?.toUpperCase() === vehicle.trim().toUpperCase() && ['En ruta', 'Incidencia'].includes(o.status),
@@ -612,6 +672,16 @@ export function upsertProduct(s: AppState, p: Product, originalId?: string) {
   if (!normalized.attributes.length) delete normalized.attributes;
   normalized.presentations = [...new Set((p.presentations ?? []).map((item) => item.trim()).filter(Boolean))].slice(0, 12);
   if (!normalized.presentations.length) delete normalized.presentations;
+  const barcode = String(p.barcode ?? '').trim();
+  if (barcode) {
+    const taken = s.products.find(
+      (other) => other.id !== (originalId ?? p.id) && other.barcode?.toUpperCase() === barcode.toUpperCase(),
+    );
+    if (taken) throw new Error(`El código de barras ya lo usa ${taken.name}.`);
+    normalized.barcode = barcode;
+  } else if ('barcode' in p) {
+    normalized.barcode = undefined;
+  }
   validateComponents(s, normalized.id, normalized.components);
   if (originalId) {
     const existing = product(s, originalId);

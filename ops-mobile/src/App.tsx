@@ -20,6 +20,7 @@ import { HomePage } from './pages/HomePage';
 import { InventoryPage } from './pages/InventoryPage';
 import { LoginPage } from './pages/LoginPage';
 import { OrdersPage } from './pages/OrdersPage';
+import { PackingPage } from './pages/PackingPage';
 import { ReceivePage } from './pages/ReceivePage';
 import { WarehousePage } from './pages/WarehousePage';
 
@@ -211,6 +212,7 @@ export function App() {
                 path="/pedidos"
                 element={<OrdersPage state={state} user={user} onRefresh={refresh} />}
               />
+              <Route path="/empaque" element={<PackingPage state={state} onRefresh={refresh} />} />
               <Route path="/bodega" element={<WarehousePage state={state} />} />
               <Route path="/ruta" element={<Navigate to="/" replace />} />
               <Route path="/despacho" element={<Navigate to="/" replace />} />

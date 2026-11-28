@@ -1,4 +1,4 @@
-import { NavLink } from 'react-router-dom';
+import { NavLink, useLocation } from 'react-router-dom';
 import { motion } from 'motion/react';
 import { Icon, Logo } from '../../shared/components/Icon';
 import { cx } from '../../shared/components/ui';
@@ -6,6 +6,9 @@ import { spring } from '../../shared/motion/presets';
 import type { MenuSection } from '../navigation';
 import { Tooltip } from '../../shared/components/Tooltip';
 import { IconButton } from '../../shared/components/IconButton';
+
+/** Pantallas sin entrada propia que se marcan dentro de otra del menú. */
+const NESTED_PATHS: Record<string, string> = { '/pedidos': '/cotizaciones' };
 
 type Props = {
   sections: MenuSection[];
@@ -29,6 +32,7 @@ export function Sidebar({
   onAssistant,
   onLogout,
 }: Props) {
+  const { pathname } = useLocation();
   return (
     <aside
       className={cx('sidebar', collapsed && 'is-collapsed', mobileOpen && 'open')}
@@ -58,25 +62,34 @@ export function Sidebar({
                     to={item.path}
                     end={item.path === '/'}
                     onClick={onNavigate}
-                    className="nav-item"
+                    className={({ isActive }) =>
+                      cx(
+                        'nav-item',
+                        !isActive && NESTED_PATHS[item.path] && pathname.startsWith(NESTED_PATHS[item.path]) && 'is-nested',
+                      )
+                    }
                   >
-                    {({ isActive }) => (
-                      <>
-                        {isActive ? (
-                          <motion.span
-                            layoutId="nav-active"
-                            className="nav-active-bg"
-                            transition={spring.snappy}
-                            aria-hidden
-                          />
-                        ) : null}
-                        <Icon name={item.icon} />
-                        <span className="nav-label">{item.label}</span>
-                        {pill ? (
-                          <span className={cx('nav-pill', count ? 'is-count' : null)}>{pill}</span>
-                        ) : null}
-                      </>
-                    )}
+                    {({ isActive: own }) => {
+                      const nested = NESTED_PATHS[item.path];
+                      const isActive = own || Boolean(nested && pathname.startsWith(nested));
+                      return (
+                        <>
+                          {isActive ? (
+                            <motion.span
+                              layoutId="nav-active"
+                              className="nav-active-bg"
+                              transition={spring.snappy}
+                              aria-hidden
+                            />
+                          ) : null}
+                          <Icon name={item.icon} />
+                          <span className="nav-label">{item.label}</span>
+                          {pill ? (
+                            <span className={cx('nav-pill', count ? 'is-count' : null)}>{pill}</span>
+                          ) : null}
+                        </>
+                      );
+                    }}
                   </NavLink></Tooltip>
                 );
               })}

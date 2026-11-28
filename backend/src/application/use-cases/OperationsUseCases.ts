@@ -14,6 +14,8 @@ import {
   client,
   confirmDelivery,
   createOrder,
+  editOrder,
+  deleteProduct,
   dispatch,
   move,
   orderValue,
@@ -52,6 +54,8 @@ import { deleteBundle, ensureBundles, saveBundle } from '../../domain/bundles.se
 import {
   cancelOrder,
   cancelPurchase,
+  editPurchase,
+  deleteClient,
   closePurchase,
   createBackorderPurchases,
   createClient,
@@ -92,7 +96,21 @@ import {
   shipTransfer,
   suggestReplenishment,
 } from '../../domain/commercial.service.js';
-import { deleteVehicle as removeFleetVehicle, upsertVehicle } from '../../domain/fleet.service.js';
+import { deleteVehicle as removeFleetVehicle, syncFleet, upsertVehicle } from '../../domain/fleet.service.js';
+import { packingListPdf, parcelLabelsPdf } from '../../domain/packing-documents.js';
+import {
+  assertPackedForDispatch,
+  cleanPackingBoxes,
+  closePacking,
+  countUnits,
+  scanUnit,
+  confirmLoad,
+  createParcel,
+  deleteParcel,
+  releaseLoad,
+  reopenPacking,
+  updateParcel,
+} from '../../domain/packing.service.js';
 import {
   approvePlan,
   createQuote,
@@ -100,7 +118,8 @@ import {
   discardPlan,
   loadPreview,
   loseQuote,
-  packOrder,
+  ordersOutOfZone,
+  type LoadTruck,
   planView,
   removeOffering,
   saveOffering,
@@ -191,6 +210,7 @@ export class OperationsUseCases {
   async updateSettings(settings: Partial<Settings>) {
     return this.mutate((s) => {
       const { businessRules, shippingTemplates, defaultShippingTemplateId, ...rest } = settings;
+      if (rest.packingBoxes !== undefined) rest.packingBoxes = cleanPackingBoxes(rest.packingBoxes);
       s.settings = { ...s.settings, ...rest };
       if (businessRules) {
         s.settings.businessRules = mergeBusinessRules(s.settings.businessRules, businessRules);
@@ -433,8 +453,11 @@ export class OperationsUseCases {
     orderIds: string[],
     vehicle = 'GBA-2041',
     limits?: { maxKg?: number; maxM3?: number },
+    fleet: Parameters<typeof syncFleet>[1] = [],
   ) {
     return this.mutate((s) => {
+      syncFleet(s, fleet);
+      assertPackedForDispatch(s, orderIds);
       dispatch(s, orderIds, vehicle, limits);
     });
   }
@@ -572,6 +595,30 @@ export class OperationsUseCases {
   async addPurchase(body: Parameters<typeof createPurchase>[1]) {
     return this.mutate((s) => {
       createPurchase(s, body);
+    });
+  }
+
+  async editClientOrder(orderId: string, body: Parameters<typeof editOrder>[2]) {
+    return this.mutate((s) => {
+      editOrder(s, orderId, body);
+    });
+  }
+
+  async editPurchaseOrder(id: string, body: Parameters<typeof editPurchase>[2]) {
+    return this.mutate((s) => {
+      editPurchase(s, id, body);
+    });
+  }
+
+  async removeClient(id: string) {
+    return this.mutate((s) => {
+      deleteClient(s, id);
+    });
+  }
+
+  async removeProduct(id: string) {
+    return this.mutate((s) => {
+      deleteProduct(s, id);
     });
   }
 
@@ -798,15 +845,79 @@ export class OperationsUseCases {
     });
   }
 
-  async pack(orderId: string, weightKg: number, volumeM3: number) {
+  async addParcel(body: Parameters<typeof createParcel>[1]) {
     return this.mutate((s) => {
-      packOrder(s, orderId, weightKg, volumeM3);
+      createParcel(s, body);
     });
   }
 
-  async previewLoad(plate: string, orderIds: string[]) {
+  async editParcel(id: string, body: Parameters<typeof updateParcel>[2]) {
+    return this.mutate((s) => {
+      updateParcel(s, id, body);
+    });
+  }
+
+  async removeParcel(id: string) {
+    return this.mutate((s) => {
+      deleteParcel(s, id);
+    });
+  }
+
+  async countPackedUnits(orderId: string, body: Parameters<typeof countUnits>[2]) {
+    return this.mutate((s) => {
+      countUnits(s, orderId, body);
+    });
+  }
+
+  async scanPackedUnit(orderId: string, code: string) {
+    let scanned = '';
+    const state = await this.mutate((s) => {
+      scanned = scanUnit(s, orderId, code).name;
+    });
+    return { state, scanned };
+  }
+
+  async packingDocument(orderId: string, kind: 'labels' | 'list') {
     const state = await this.repo.load();
-    return loadPreview(state, plate, orderIds);
+    return kind === 'labels' ? parcelLabelsPdf(state, orderId) : packingListPdf(state, orderId);
+  }
+
+  async closeOrderPacking(orderId: string) {
+    return this.mutate((s) => {
+      closePacking(s, orderId);
+    });
+  }
+
+  async reopenOrderPacking(orderId: string) {
+    return this.mutate((s) => {
+      reopenPacking(s, orderId);
+    });
+  }
+
+  async previewLoad(plate: string, orderIds: string[], fleet: LoadTruck[] = []) {
+    const state = await this.repo.load();
+    const truck = fleet.find((t) => t.plate.toUpperCase() === plate.trim().toUpperCase());
+    if (fleet.length && !truck) throw new Error('El vehículo no está activo en la flota.');
+    return loadPreview(state, plate, orderIds, truck);
+  }
+
+  async confirmTruckLoad(
+    body: { plate: string; orderIds: string[]; reason?: string },
+    fleet: Array<LoadTruck & { label: string; driver?: string }> = [],
+  ) {
+    return this.mutate((s) => {
+      const wanted = body.plate.trim().toUpperCase();
+      const truck = fleet.find((t) => t.plate.toUpperCase() === wanted);
+      if (fleet.length && !truck) throw new Error('El vehículo no está activo en la flota.');
+      syncFleet(s, fleet);
+      confirmLoad(s, { ...body, outOfZone: truck ? ordersOutOfZone(s, truck, body.orderIds) : [] });
+    });
+  }
+
+  async releaseTruckLoad(plate: string) {
+    return this.mutate((s) => {
+      releaseLoad(s, plate);
+    });
   }
 
   async skipStop(orderId: string) {

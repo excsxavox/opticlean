@@ -7,7 +7,7 @@ import {
   client,
   money as moneyFmt,
   orderValue,
-  orderWeight,
+  orderLoadKg,
   product,
   statusColor,
 } from '../../shared/lib/inventory';
@@ -59,7 +59,7 @@ export function LogisticsPage() {
   const [selectedOrders, setSelectedOrders] = useState<string[]>([]);
   const [mainTab, setMainTab] = useState<MainTab>('distribucion');
   const [listTab, setListTab] = useState<'pendientes' | 'listos' | 'en_ruta'>('listos');
-  const [stagedByTruck, setStagedByTruck] = useState<Record<string, string[]>>({});
+  const [draftStaged, setDraftStaged] = useState<Record<string, string[]>>({});
   const [pedidosTruckId, setPedidosTruckId] = useState<string | null>(null);
   const [expandedRoute, setExpandedRoute] = useState<string | null>(null);
   const [detailId, setDetailId] = useState<string | null>(null);
@@ -91,6 +91,23 @@ export function LogisticsPage() {
   }, []);
 
   const activeOrders = useMemo(() => (state ? getActiveOrders(state) : []), [state]);
+
+  /** Carga = la confirmada en Empaque (guardada) más lo que se está armando aquí. */
+  const stagedByTruck = useMemo(() => {
+    const saved = activeOrders
+      .filter((o) => o.status === 'Preparado' && o.stagedPlate)
+      .sort((a, b) => (a.stopOrder ?? 0) - (b.stopOrder ?? 0));
+    const savedIds = new Set(saved.map((o) => o.id));
+    const out: Record<string, string[]> = {};
+    for (const t of fleet) {
+      const ids = saved
+        .filter((o) => o.stagedPlate?.toUpperCase() === t.plate.toUpperCase())
+        .map((o) => o.id);
+      const draft = (draftStaged[t.id] ?? []).filter((id) => !savedIds.has(id));
+      if (ids.length || draft.length) out[t.id] = [...ids, ...draft];
+    }
+    return out;
+  }, [activeOrders, fleet, draftStaged]);
 
   const stagedIds = useMemo(() => new Set(Object.values(stagedByTruck).flat()), [stagedByTruck]);
 
@@ -158,7 +175,7 @@ export function LogisticsPage() {
   const detailTruck = detail?.vehicle ? fleet.find((t) => t.plate === detail.vehicle) : null;
 
   const totalVolume = activeOrders.reduce((n, o) => n + orderVolume(state, o), 0);
-  const totalWeight = activeOrders.reduce((n, o) => n + orderWeight(state, o), 0);
+  const totalWeight = activeOrders.reduce((n, o) => n + orderLoadKg(state, o), 0);
   const fleetMaxVolume = 120;
   const fleetMaxWeight = 10000;
   const trucksInUse = fleet.filter((t) => activeOrders.some((o) => o.vehicle === t.plate));
@@ -219,7 +236,7 @@ export function LogisticsPage() {
       );
     }
     if (!allowed.length) return;
-    setStagedByTruck((prev) => {
+    setDraftStaged((prev) => {
       const next: Record<string, string[]> = {};
       for (const [tid, list] of Object.entries(prev)) {
         next[tid] = list.filter((id) => !allowed.includes(id));
@@ -234,11 +251,34 @@ export function LogisticsPage() {
     toast(`${allowed.length} pedido(s) cargado(s) en ${truck.label}. Revisa Pedidos o Enviar.`);
   };
 
-  const unstageOrder = (truckId: string, orderId: string) => {
-    setStagedByTruck((prev) => ({
-      ...prev,
-      [truckId]: (prev[truckId] ?? []).filter((id) => id !== orderId),
-    }));
+  const unstageOrder = async (truckId: string, orderId: string) => {
+    const saved = activeOrders.find((o) => o.id === orderId && o.stagedPlate);
+    if (!saved) {
+      setDraftStaged((prev) => ({
+        ...prev,
+        [truckId]: (prev[truckId] ?? []).filter((id) => id !== orderId),
+      }));
+      return;
+    }
+    // Está en la carga confirmada: se guarda la carga sin ese pedido.
+    const plate = saved.stagedPlate!;
+    const rest = activeOrders
+      .filter((o) => o.status === 'Preparado' && o.stagedPlate === plate && o.id !== orderId)
+      .sort((a, b) => (a.stopOrder ?? 0) - (b.stopOrder ?? 0));
+    try {
+      applyResponse(
+        rest.length
+          ? await api.confirmLoad({
+              plate,
+              orderIds: rest.map((o) => o.id),
+              reason: rest.find((o) => o.loadNote)?.loadNote,
+            })
+          : await api.releaseLoad(plate),
+      );
+      toast(`${orderId} salió de la carga de ${plate}.`);
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'No se pudo retirar de la carga');
+    }
   };
 
   const markReady = async (orderId: string) => {
@@ -275,7 +315,7 @@ export function LogisticsPage() {
         ? ` · +${res.km.added} km (odómetro ${res.km.odometerKm.toLocaleString('es-EC')} km)`
         : '';
       toast(`${t.label} enviado con ${ids.length} pedido(s)${kmMsg}.`);
-      setStagedByTruck((prev) => ({ ...prev, [truckId]: [] }));
+      setDraftStaged((prev) => ({ ...prev, [truckId]: [] }));
       setPedidosTruckId(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error');
@@ -323,7 +363,7 @@ export function LogisticsPage() {
       }
 
       if (plan.assignments.length) {
-        setStagedByTruck((prev) => {
+        setDraftStaged((prev) => {
           const next: Record<string, string[]> = { ...prev };
           for (const [truckId, ids] of Object.entries(plan.byTruck)) {
             next[truckId] = [...new Set([...(next[truckId] ?? []), ...ids])];
@@ -622,7 +662,7 @@ export function LogisticsPage() {
                                       <strong>Pedido {o.id.replace('PED-', '#')}</strong>
                                       <small>
                                         {sectorOf(state, o)} · {client(state, o.clientId)?.name} ·{' '}
-                                        {orderWeight(state, o).toFixed(1)} kg
+                                        {orderLoadKg(state, o).toFixed(1)} kg
                                       </small>
                                     </span>
                                     <span className="log-order-meta">
@@ -1036,7 +1076,7 @@ export function LogisticsPage() {
               <div>
                 <dt>Carga</dt>
                 <dd>
-                  {orderWeight(state, detail).toFixed(1)} kg ·{' '}
+                  {orderLoadKg(state, detail).toFixed(1)} kg ·{' '}
                   {orderVolume(state, detail).toFixed(2)} m³ · {packagesOf(detail)}{' '}
                   {packagesOf(detail) === 1 ? 'paquete' : 'paquetes'}
                 </dd>
@@ -1112,14 +1152,14 @@ export function LogisticsPage() {
                               {o.id} · {client(state, o.clientId)?.name}
                             </strong>
                             <small>
-                              {sectorOf(state, o)} · {orderWeight(state, o).toFixed(1)} kg ·{' '}
+                              {sectorOf(state, o)} · {orderLoadKg(state, o).toFixed(1)} kg ·{' '}
                               {orderVolume(state, o).toFixed(2)} m³
                             </small>
                           </div>
                           <Btn
                             variant="danger"
                             icon="close"
-                            onClick={() => unstageOrder(pt.id, o.id)}
+                            onClick={() => void unstageOrder(pt.id, o.id)}
                           >
                             Sacar
                           </Btn>
@@ -1140,7 +1180,7 @@ export function LogisticsPage() {
                               {o.id} · {client(state, o.clientId)?.name}
                             </strong>
                             <small>
-                              {statusLabel(o.status)} · {orderWeight(state, o).toFixed(1)} kg
+                              {statusLabel(o.status)} · {orderLoadKg(state, o).toFixed(1)} kg
                             </small>
                           </div>
                           <Badge text={o.status} color={statusColor(o.status)} />

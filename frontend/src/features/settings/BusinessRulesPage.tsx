@@ -14,6 +14,7 @@ import { money } from '../../shared/lib/inventory';
 import { Btn, PageHead } from '../../shared/components/ui';
 import { Icon } from '../../shared/components/Icon';
 import type { BusinessRules, ShippingCostTemplate } from '../../shared/types';
+import { PackingBoxesEditor } from './PackingBoxesEditor';
 import '../../styles/business-rules.css';
 import { Switch } from '../../shared/components/Checkbox';
 import { Input } from '../../shared/components/Input';
@@ -147,6 +148,15 @@ export function BusinessRulesPage() {
         num(data.get('defaultCreditLimit'), draft.defaultCreditLimit),
       ),
       separateExpiryLots: draft.separateExpiryLots,
+      packTolerancePct: Math.min(
+        50,
+        Math.max(1, num(data.get('packTolerancePct'), draft.packTolerancePct)),
+      ),
+      loadMinFillPct: Math.min(
+        100,
+        Math.max(0, num(data.get('loadMinFillPct'), draft.loadMinFillPct)),
+      ),
+      requirePackingBeforeDispatch: draft.requirePackingBeforeDispatch,
     };
     if (next.creditOkMaxPct >= next.creditTightMaxPct) {
       setError('El umbral “cupo holgado” debe ser menor que “cupo ajustado”.');
@@ -463,13 +473,45 @@ export function BusinessRulesPage() {
                   onCheckedChange={(checked) => setFlag('separateExpiryLots', checked)}
                 />
               </label>
+              <label className="field">
+                <span>Tolerancia de peso por bulto (%)</span>
+                <Input
+                  name="packTolerancePct"
+                  type="number"
+                  min={1}
+                  max={50}
+                  step={1}
+                  value={draft.packTolerancePct}
+                  onChange={(e) => setField('packTolerancePct', Number(e.target.value))}
+                />
+              </label>
+              <label className="field">
+                <span>Llenado mínimo del camión (%)</span>
+                <Input
+                  name="loadMinFillPct"
+                  type="number"
+                  min={0}
+                  max={100}
+                  step={5}
+                  value={draft.loadMinFillPct}
+                  onChange={(e) => setField('loadMinFillPct', Number(e.target.value))}
+                />
+              </label>
+              <label className="field">
+                <span>El despacho exige empaque cerrado</span>
+                <Switch
+                  name="requirePackingBeforeDispatch"
+                  checked={draft.requirePackingBeforeDispatch}
+                  onCheckedChange={(checked) => setFlag('requirePackingBeforeDispatch', checked)}
+                />
+              </label>
             </div>
           </section>
 
           {error ? <div className="form-error visible">{error}</div> : null}
 
           <div className="br-actions">
-            <Btn variant="primary" icon="save" disabled={busy}>
+            <Btn type="submit" variant="primary" icon="save" disabled={busy}>
               {busy ? 'Guardando…' : 'Guardar reglas'}
             </Btn>
           </div>
@@ -512,7 +554,7 @@ export function BusinessRulesPage() {
               <Input
                 type="number"
                 min={0.1}
-                step={0.1}
+                step="any"
                 value={previewEta}
                 onChange={(e) => setPreviewEta(Math.max(0.1, Number(e.target.value) || 0.1))}
               />
@@ -549,6 +591,8 @@ export function BusinessRulesPage() {
           </section>
         </aside>
       </form>
+
+      <PackingBoxesEditor />
     </div>
   );
 }

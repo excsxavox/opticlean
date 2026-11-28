@@ -74,8 +74,10 @@ async function stateOf(page: Page): Promise<State> {
 
 async function moneyText(page: Page) {
   await page.goto('/');
-  const money = page.getByRole('region', { name: 'Dinero de la operación' });
-  await expect(money.getByText('Te quedó')).toBeVisible();
+  const money = page.getByRole('region', { name: 'Resumen financiero' });
+  await expect(money.getByText('Resultado del período')).toBeVisible();
+  await money.getByRole('button', { name: 'Ver desglose' }).click();
+  await expect(money.getByRole('button', { name: 'Ocultar desglose' })).toBeVisible();
   return money.innerText();
 }
 
@@ -84,7 +86,7 @@ test('El cliente importa su factura, el camión llega y el inicio muestra cada c
   await page.locator('input[name=email]').fill('admin@innovamf.com');
   await page.locator('input[name=password]').fill('OptiClean2026!');
   await page.getByRole('button', { name: 'Entrar' }).click();
-  await expect(page.getByRole('region', { name: 'Dinero de la operación' })).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Resumen financiero' })).toBeVisible();
 
   await page.goto('/pedidos/nuevo');
   await page.getByRole('button', { name: 'Subir archivo' }).click();
@@ -120,7 +122,24 @@ test('El cliente importa su factura, el camión llega y el inicio muestra cada c
   )!.id;
 
   await call(page, 'POST', `/api/orders/${changedId}/prepare`);
-  await call(page, 'POST', '/api/packing', { orderId: changedId, weightKg: 8, volumeM3: 0.04 });
+  // Empaque: un bulto por lote, con el peso del catálogo más la caja.
+  const toPack = (await stateOf(page)).orders.find((order) => order.id === changedId) as unknown as {
+    picks: Array<{ productId: string; batch: string; qty: number }>;
+  };
+  for (const pick of toPack.picks) {
+    const body = await call(page, 'POST', '/api/packing/parcels', { orderId: changedId, boxCode: 'M' });
+    const packed = body.state as unknown as {
+      parcels: Array<{ id: string; orderId: string }>;
+      products: Array<{ id: string; weight: number }>;
+    };
+    const parcel = packed.parcels.filter((item) => item.orderId === changedId).at(-1)!;
+    const unit = packed.products.find((item) => item.id === pick.productId)!.weight;
+    await call(page, 'PATCH', `/api/packing/parcels/${parcel.id}`, {
+      contents: [{ productId: pick.productId, batch: pick.batch, qty: pick.qty }],
+      weightKg: Math.round((unit * pick.qty + 0.4) * 100) / 100,
+    });
+  }
+  await call(page, 'POST', `/api/packing/orders/${changedId}/close`);
   await call(page, 'POST', '/api/dispatch', { orderIds: [changedId], vehicle: 'AMB-5520' });
   state = await stateOf(page);
   const enRoute = state.orders.find((order) => order.id === changedId)!;
@@ -135,7 +154,7 @@ test('El cliente importa su factura, el camión llega y el inicio muestra cada c
   const invoice = (invoiced.state as State).invoices!.find((item) => item.orderId === changedId)!;
 
   let panel = await moneyText(page);
-  expect(panel).toContain('VENDISTE');
+  expect(panel).toMatch(/ventas netas/i);
   expect(panel).toContain('Hotel Alameda S.A.');
   expect(panel).toContain('Camión AMB-5520');
   expect(panel).not.toContain(original!.id);
@@ -186,8 +205,10 @@ test('El cliente importa su factura, el camión llega y el inicio muestra cada c
   panel = await moneyText(page);
   expect(panel).toContain(purchase.id);
   expect(panel).toContain('Llegó una parte');
-  expect(panel).toContain('COMPRASTE');
-  expect(panel).not.toMatch(/COMPRASTE\s+\$0[,.]00/);
+  // La compra parcial aparece en el desglose con lo que realmente llegó.
+  const bought = page.locator('.dash-money-lines li', { hasText: purchase.id });
+  await expect(bought).toContainText('Compra');
+  await expect(bought.locator('em')).not.toHaveText(/^-?\s*\$\s*0[,.]00$/);
 
   state = await stateOf(page);
   const done = state.orders.find((order) => order.id === changedId)!;

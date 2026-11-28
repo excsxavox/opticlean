@@ -10,7 +10,6 @@ import {
   discardPlan,
   loadPreview,
   loseQuote,
-  packOrder,
   planView,
   readLabel,
   saveOffering,
@@ -19,6 +18,8 @@ import {
   winQuote,
 } from '../src/domain/outbound.service.js';
 import { renderReport } from '../src/domain/report-file.js';
+import { createParcel } from '../src/domain/packing.service.js';
+import { packAll } from './helpers/pack.js';
 
 test('La cotización se gana como pedido del mismo canal y no se vuelve a ganar', () => {
   const s = seed();
@@ -50,9 +51,9 @@ test('Una cotización vencida no se convierte en pedido', () => {
 test('El empaque exige un pedido preparado y la carga avisa si no llega al 80%', () => {
   const s = seed();
   const order = createOrder(s, { clientId: 'CL001', lines: [{ productId: 'P001', qty: 1 }] });
-  assert.throws(() => packOrder(s, order.id, 2, 0.1), /preparado/);
+  assert.throws(() => createParcel(s, { orderId: order.id }), /preparado/);
   prepare(s, order.id);
-  packOrder(s, order.id, 2, 0.2);
+  packAll(s, order.id);
   const preview = loadPreview(s, 'GBA-2041', [order.id]);
   assert.equal(preview.underMin, true);
   assert.deepEqual(preview.loadSequence, [order.id]);

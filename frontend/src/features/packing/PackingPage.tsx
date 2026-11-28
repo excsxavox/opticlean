@@ -1,144 +1,109 @@
-import { useMemo, useState } from 'react';
+import { useRef, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useAppState } from '../../shared/hooks/AppStateProvider';
-import { api } from '../../shared/api/client';
-import { money } from '../../shared/lib/inventory';
-import { Btn, Empty, PageHead } from '../../shared/components/ui';
-import { Select } from '../../shared/components/Select';
+import { Kpi, KpiGrid, PageHead } from '../../shared/components/ui';
+import { SegmentedControl } from '../../shared/components/Tabs';
+import type { AppState, Metrics } from '../../shared/types';
+import { PackStation } from './PackStation';
+import { TruckLoad } from './TruckLoad';
+import { parcelsOf } from './packingModel';
+import '../../styles/packing.css';
 
-type Preview = Awaited<ReturnType<typeof api.previewLoad>>;
+/** Ejecuta una escritura, aplica el estado devuelto y muestra el resultado. */
+export type RunAction = (
+  action: () => Promise<{ state: AppState; metrics: Metrics }>,
+  success?: string,
+) => Promise<boolean>;
+
+type View = 'pack' | 'load';
 
 export function PackingPage() {
   const { state, applyResponse, toast } = useAppState();
-  const [picked, setPicked] = useState<string[]>([]);
-  const [plate, setPlate] = useState('');
-  const [weight, setWeight] = useState('');
-  const [volume, setVolume] = useState('');
-  const [preview, setPreview] = useState<Preview | null>(null);
+  const [params, setParams] = useSearchParams();
+  const view: View = params.get('vista') === 'carga' ? 'load' : 'pack';
   const [error, setError] = useState('');
-  const [busy, setBusy] = useState(false);
+  const [pending, setPending] = useState(0);
+  const queue = useRef<Promise<unknown>>(Promise.resolve());
 
-  const ready = useMemo(
-    () => (state?.orders ?? []).filter((order) => order.status === 'Preparado'),
-    [state?.orders],
-  );
   if (!state) return null;
-  const vehicles = (state.vehicles ?? []).filter((vehicle) => vehicle.active);
 
-  const toggle = (id: string) => {
-    setPreview(null);
-    setPicked((current) => (current.includes(id) ? current.filter((item) => item !== id) : [...current, id]));
+  // En fila: así dos guardados seguidos (peso y luego motivo) no se pisan.
+  const run: RunAction = (action, success) => {
+    setPending((n) => n + 1);
+    const result = queue.current.then(async () => {
+      try {
+        applyResponse(await action());
+        setError('');
+        if (success) toast(success);
+        return true;
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'No se pudo guardar.';
+        setError(message);
+        toast(message);
+        return false;
+      } finally {
+        setPending((n) => n - 1);
+      }
+    });
+    queue.current = result;
+    return result;
   };
 
-  const pack = async (orderId: string) => {
-    setBusy(true);
-    setError('');
-    try {
-      applyResponse(await api.packOrder({ orderId, weightKg: Number(weight), volumeM3: Number(volume) }));
-      toast('Bulto registrado.');
-      setWeight('');
-      setVolume('');
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'No se pudo empacar.');
-    } finally {
-      setBusy(false);
-    }
-  };
+  const orders = state.orders.filter((order) => order.status === 'Preparado');
+  const packed = orders.filter((order) => order.packing);
+  const loaded = orders.filter((order) => order.stagedPlate);
+  const readyParcels = packed.reduce((n, order) => n + parcelsOf(state, order.id).length, 0);
+  const urgent = orders.filter((order) => order.priority === 'Alta' && !order.packing).length;
 
-  const calculate = async () => {
-    if (!plate || !picked.length) return;
-    setBusy(true);
+  const changeView = (next: View) => {
     setError('');
-    try {
-      setPreview(await api.previewLoad(plate, picked));
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'No se pudo calcular la carga.');
-    } finally {
-      setBusy(false);
-    }
+    setParams(next === 'load' ? { vista: 'carga' } : {}, { replace: true });
   };
 
   return (
-    <div>
+    <div className="pk-page">
       <PageHead
         eyebrow="Logística"
         title="Empaque y carga"
-        desc="Pesa el bulto, mira si el camión llega al 80 % y en qué orden se carga: lo último en subir es la primera parada."
+        desc="Verifica lo preparado, arma los bultos y deja el camión cargado antes del despacho."
+        actions={
+          <SegmentedControl
+            label="Vista"
+            value={view}
+            onValueChange={changeView}
+            items={[
+              { value: 'pack', label: 'Estación de empaque', count: orders.length - packed.length },
+              { value: 'load', label: 'Carga de camión', count: packed.length },
+            ]}
+          />
+        }
       />
-      {error ? <div className="form-error visible">{error}</div> : null}
-      {ready.length ? (
-        <div className="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th></th>
-                <th>Pedido</th>
-                <th>Cliente</th>
-                <th>Bultos</th>
-                <th>Peso kg</th>
-                <th>m³</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {ready.map((order) => {
-                const parcels = (state.parcels ?? []).filter((parcel) => parcel.orderId === order.id);
-                const client = state.clients.find((item) => item.id === order.clientId);
-                return (
-                  <tr key={order.id}>
-                    <td>
-                      <input type="checkbox" checked={picked.includes(order.id)} onChange={() => toggle(order.id)} aria-label={`Cargar ${order.id}`} />
-                    </td>
-                    <td>{order.id}</td>
-                    <td>{client?.name}</td>
-                    <td>{parcels.length || 'Sin pesar'}</td>
-                    <td>
-                      <input aria-label={`Peso de ${order.id}`} value={picked.includes(order.id) ? weight : ''} onChange={(event) => setWeight(event.target.value)} inputMode="decimal" />
-                    </td>
-                    <td>
-                      <input aria-label={`Volumen de ${order.id}`} value={picked.includes(order.id) ? volume : ''} onChange={(event) => setVolume(event.target.value)} inputMode="decimal" />
-                    </td>
-                    <td>
-                      <Btn size="small" disabled={busy} onClick={() => void pack(order.id)}>Empacar</Btn>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+
+      <KpiGrid label="Resumen de empaque">
+        <Kpi
+          label="Por empacar"
+          icon="box"
+          value={orders.length - packed.length}
+          tone={urgent ? 'warning' : 'default'}
+          caption={urgent ? `${urgent} de prioridad alta` : 'Sin urgentes'}
+          captionTone={urgent ? 'warning' : undefined}
+        />
+        <Kpi label="Empacados" icon="check" tone="success" value={packed.length} caption="Con empaque cerrado" />
+        <Kpi label="Bultos listos" icon="cube" value={readyParcels} caption="En pedidos empacados" />
+        <Kpi label="Cargados" icon="truck" value={loaded.length} caption="Esperando despacho" />
+      </KpiGrid>
+
+      {error ? (
+        <div className="pk-note pk-note-bad pk-page-error" role="alert">
+          {error}
         </div>
+      ) : null}
+
+      {view === 'pack' ? (
+        <PackStation state={state} orders={orders} run={run} busy={pending > 0} toast={toast} />
       ) : (
-        <Empty title="Nada preparado" desc="El empaque empieza cuando el pedido ya tiene lote de salida." />
+        <TruckLoad state={state} orders={orders} run={run} busy={pending > 0} />
       )}
-      <section className="panel" style={{ marginTop: 16 }}>
-        <h2>Camión</h2>
-        <div className="field">
-          <label htmlFor="pack-plate">Placa</label>
-          <Select id="pack-plate" value={plate} onChange={(event) => { setPlate(event.target.value); setPreview(null); }}>
-            <option value="">Selecciona…</option>
-            {vehicles.map((vehicle) => (
-              <option key={vehicle.id} value={vehicle.plate}>
-                {vehicle.plate} · {vehicle.label}
-                {vehicle.fuel ? ` · ${vehicle.fuel}` : ''}
-              </option>
-            ))}
-          </Select>
-        </div>
-        <Btn disabled={busy || !plate || !picked.length} onClick={() => void calculate()}>Calcular llenado</Btn>
-        {preview ? (
-          <div>
-            <p>
-              {preview.kg} kg · {preview.m3} m³ · llenado {Math.round(preview.fill * 100)} %.
-              {preview.underMin ? ' Está por debajo del 80 %.' : ' Llega al llenado mínimo.'}
-              {preview.over ? ' Supera la capacidad del vehículo.' : ''}
-            </p>
-            <p>
-              Viaje de {preview.trip.km} km: {money(preview.trip.allIn)} todo incluido
-              {preview.trip.fuel ? `, combustible ${money(preview.trip.fuel)} (${preview.trip.fuelUnits} ${preview.trip.fuelType === 'electrico' ? 'kWh' : 'gal'})` : ''}.
-            </p>
-            <p>Orden de carga, de la bodega hacia la puerta: {preview.loadSequence.join(' → ') || '—'}</p>
-          </div>
-        ) : null}
-      </section>
     </div>
   );
 }

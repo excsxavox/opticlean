@@ -7,7 +7,7 @@ import { createOrder, prepare, dispatch, confirmDelivery } from '../src/domain/i
 import { cancelOrder, updateClient, receivePurchase } from '../src/domain/commerce.service.js';
 import { commitImport, previewXml } from '../src/domain/import-docs.service.js';
 import { issueCreditNote, issueInvoice } from '../src/domain/commercial.service.js';
-import { packOrder } from '../src/domain/outbound.service.js';
+import { packAll } from './helpers/pack.js';
 import { cellFits, unitsAt } from '../src/domain/capacity.js';
 import { getWarehouseGeometry } from '../src/domain/warehouse-layout.js';
 
@@ -47,7 +47,7 @@ test('Una factura de otro sistema llega al cliente y el dinero cuadra en cada ca
   assert.equal(changed.status, 'Por preparar');
 
   prepare(s, changed.id);
-  packOrder(s, changed.id, 8, 0.04);
+  packAll(s, changed.id);
   dispatch(s, [changed.id], 'AMB-5520');
   assert.equal(changed.status, 'En ruta');
   assert.ok(changed.deliveryCode);

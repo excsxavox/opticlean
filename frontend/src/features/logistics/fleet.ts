@@ -1,4 +1,4 @@
-import { client, orderWeight, product } from '../../shared/lib/inventory';
+import { client, orderLoadKg, orderLoadM3 } from '../../shared/lib/inventory';
 import {
   estimateRouteCost,
   estimateRouteEtaHours,
@@ -127,8 +127,7 @@ export const FLEET: Truck[] = [
 export const ACTIVE_STATUSES = new Set(['Por preparar', 'Preparado', 'En ruta', 'Incidencia']);
 export const ROUTE_STATUSES = new Set(['En ruta', 'Incidencia']);
 
-export const orderVolume = (s: AppState, o: Order) =>
-  o.lines.reduce((n, l) => n + l.qty * (product(s, l.productId)?.volume ?? 0), 0) / 1000;
+export const orderVolume = (s: AppState, o: Order) => orderLoadM3(s, o);
 
 export const packagesOf = (o: Order) => o.lines.length;
 
@@ -176,7 +175,7 @@ export function truckLoad(
     (o) => o.status === 'Preparado' && !truckOrders.some((x) => x.id === o.id),
   );
   const all = [...truckOrders, ...pendingOnly];
-  const kg = Math.round(all.reduce((n, o) => n + orderWeight(s, o), 0));
+  const kg = Math.round(all.reduce((n, o) => n + orderLoadKg(s, o), 0));
   const m3 = Math.round(all.reduce((n, o) => n + orderVolume(s, o), 0) * 10) / 10;
   const pct = Math.max(
     Math.min(100, Math.round((kg / t.maxKg) * 100)),
@@ -243,7 +242,7 @@ export function suggestAutoAssign(
     .filter((o) => o.status === 'Preparado' && !stagedSet.has(o.id) && !o.vehicle)
     .map((o) => ({
       order: o,
-      kg: orderWeight(s, o),
+      kg: orderLoadKg(s, o),
       m3: orderVolume(s, o),
       city: cityOf(s, o),
       sector: sectorOf(s, o),
@@ -498,7 +497,7 @@ export function buildRouteHistory(s: AppState, fleet: Truck[] = FLEET): RouteHis
     const incidents = b.orders.filter((o) => o.status === 'Incidencia').length;
     const pending = b.orders.filter((o) => o.status === 'En ruta').length;
     const stops = b.orders.length;
-    const kg = Math.round(b.orders.reduce((n, o) => n + orderWeight(s, o), 0));
+    const kg = Math.round(b.orders.reduce((n, o) => n + orderLoadKg(s, o), 0));
     const km = estimateRouteKm(truck.routeKm, stops, shipping);
     const cost = estimateRouteCost(km, truck.costPerKm);
     const etaHours = estimateRouteEtaHours(truck.etaHours, stops, shipping);

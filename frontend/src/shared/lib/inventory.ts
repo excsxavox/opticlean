@@ -121,6 +121,23 @@ export const orderValue = (s: AppState, o: { lines: OrderLine[]; kits?: OrderKit
 export const orderWeight = (s: AppState, o: Order) =>
   expandedDemand(s, o).reduce((n, l) => n + l.qty * (product(s, l.productId)?.weight ?? 0), 0);
 
+const measuredParcels = (s: AppState, o: Order) =>
+  o.packing ? (s.parcels ?? []).filter((parcel) => parcel.orderId === o.id) : [];
+
+/** kg del pedido: lo pesado en sus bultos si el empaque está cerrado; si no, el catálogo. */
+export const orderLoadKg = (s: AppState, o: Order) => {
+  const parcels = measuredParcels(s, o);
+  return parcels.length ? parcels.reduce((n, p) => n + p.weightKg, 0) : orderWeight(s, o);
+};
+
+/** m³ del pedido, con el mismo criterio que `orderLoadKg`. */
+export const orderLoadM3 = (s: AppState, o: Order) => {
+  const parcels = measuredParcels(s, o);
+  return parcels.length
+    ? parcels.reduce((n, p) => n + p.volumeM3, 0)
+    : expandedDemand(s, o).reduce((n, l) => n + l.qty * (product(s, l.productId)?.volume ?? 0), 0) / 1000;
+};
+
 export const money = (n: number) =>
   new Intl.NumberFormat('es-EC', { style: 'currency', currency: 'USD' }).format(n);
 

@@ -8,14 +8,15 @@ import type {
   SupplierOffering,
   Vehicle,
 } from './types.js';
-import { createOrder, expandedDemand, orderWeight, product } from './inventory.service.js';
+import { createOrder, orderLoad, product } from './inventory.service.js';
+import { estimateRouteCost, estimateRouteKm, resolveBusinessRules, resolveShippingParams } from './business-rules.js';
+import { vehicleAllowsZone, zonePathOf } from './zones.js';
 import { cancelPurchase, createPurchase } from './commerce.service.js';
 import { shipTransfer, suggestReplenishment } from './commercial.service.js';
 import { vehicleByPlate } from './fleet.service.js';
 import { isSellableLoc } from './ledger.js';
 import { activeWarehouseId, DEFAULT_WAREHOUSE_ID } from './warehouse-admin.service.js';
 
-export const MIN_FILL = 0.8;
 export const SALES_CHANNELS: SalesChannel[] = ['portal', 'ejecutivo', 'reposicion'];
 
 const CITY_POINT: Record<string, { lat: number; lng: number }> = {
@@ -158,39 +159,34 @@ export function winQuote(s: AppState, id: string) {
   return { quote, order };
 }
 
-export function packOrder(s: AppState, orderId: string, weightKg: number, volumeM3: number) {
-  ensureOutbound(s);
-  const order = s.orders.find((item) => item.id === orderId);
-  if (!order || order.status !== 'Preparado') throw new Error('Solo se empaca un pedido preparado.');
-  if (!Number.isFinite(weightKg) || weightKg <= 0) throw new Error('El peso del bulto debe ser mayor que cero.');
-  if (!Number.isFinite(volumeM3) || volumeM3 <= 0) throw new Error('El volumen del bulto debe ser mayor que cero.');
-  const parcel = {
-    id: nextNumber(s.parcels!.map((item) => item.id), 'BUL-', 4),
-    orderId,
-    weightKg: Math.round(weightKg * 100) / 100,
-    volumeM3: Math.round(volumeM3 * 1000) / 1000,
-    packedAt: new Date().toISOString(),
-  };
-  s.parcels!.push(parcel);
-  return parcel;
+export type LoadTruck = {
+  plate: string;
+  maxKg: number;
+  maxM3: number;
+  costPerKm: number;
+  city?: string;
+  allowedSectors?: string[];
+  routeKm?: number;
+  shippingTemplateId?: string;
+};
+
+const plain = (text: string | undefined) =>
+  (text ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase();
+
+/** Pedidos cuyo destino no atiende el camión: por sus zonas o, si no tiene, por su ciudad. */
+export function ordersOutOfZone(s: AppState, truck: Pick<LoadTruck, 'city' | 'allowedSectors'>, orderIds: string[]) {
+  return orderIds.filter((id) => {
+    const order = s.orders.find((item) => item.id === id);
+    const buyer = s.clients.find((item) => item.id === order?.clientId);
+    if (!buyer) return false;
+    if (truck.allowedSectors?.length) return !vehicleAllowsZone(truck.allowedSectors, zonePathOf(buyer));
+    return Boolean(truck.city && buyer.city && plain(truck.city) !== plain(buyer.city));
+  });
 }
 
-export function orderLoad(s: AppState, order: Order) {
-  const parcels = (s.parcels ?? []).filter((parcel) => parcel.orderId === order.id);
-  if (parcels.length) {
-    return {
-      kg: parcels.reduce((sum, parcel) => sum + parcel.weightKg, 0),
-      m3: parcels.reduce((sum, parcel) => sum + parcel.volumeM3, 0),
-      packed: true,
-    };
-  }
-  const m3 =
-    expandedDemand(s, order).reduce((sum, line) => sum + line.qty * (product(s, line.productId)?.volume ?? 0), 0) / 1000;
-  return { kg: orderWeight(s, order), m3, packed: false };
-}
-
-export function loadPreview(s: AppState, plate: string, orderIds: string[]) {
-  const vehicle = vehicleByPlate(s, plate);
+/** `orderIds` va en orden de entrega; se carga al revés. `fleetTruck` es la ficha de la flota de Logística. */
+export function loadPreview(s: AppState, plate: string, orderIds: string[], fleetTruck?: LoadTruck) {
+  const vehicle: LoadTruck | undefined = fleetTruck ?? vehicleByPlate(s, plate);
   if (!vehicle) throw new Error('El vehículo no está registrado en la flota.');
   const orders = orderIds.map((id) => s.orders.find((order) => order.id === id));
   if (orders.some((order) => !order)) throw new Error('Hay un pedido que no existe.');
@@ -198,24 +194,38 @@ export function loadPreview(s: AppState, plate: string, orderIds: string[]) {
   if (chosen.some((order) => !['Preparado', 'En ruta', 'Incidencia'].includes(order.status))) {
     throw new Error('La carga solo admite pedidos preparados o que ya van en el camión.');
   }
-  const loads = chosen.map((order) => ({ order, ...orderLoad(s, order) }));
+  // Lo que ya va en ruta también ocupa el camión.
+  const enRoute = s.orders.filter(
+    (order) =>
+      order.vehicle?.toUpperCase() === vehicle.plate.toUpperCase() &&
+      ['En ruta', 'Incidencia'].includes(order.status) &&
+      !orderIds.includes(order.id),
+  );
+  const loads = [...enRoute, ...chosen].map((order) => orderLoad(s, order));
   const kg = loads.reduce((sum, load) => sum + load.kg, 0);
   const m3 = loads.reduce((sum, load) => sum + load.m3, 0);
   const kgPct = vehicle.maxKg > 0 ? kg / vehicle.maxKg : 0;
   const m3Pct = vehicle.maxM3 > 0 ? m3 / vehicle.maxM3 : 0;
   const fill = Math.max(kgPct, m3Pct);
-  const sequenced = [...chosen].sort((a, b) => (a.stopOrder ?? 0) - (b.stopOrder ?? 0));
+  const rules = resolveBusinessRules(s.settings);
+  const shipping = resolveShippingParams(s.settings, vehicle.shippingTemplateId);
+  const km = chosen.length ? estimateRouteKm(vehicle.routeKm ?? 60, chosen.length, shipping) : 0;
   return {
     plate: vehicle.plate,
     kg: Math.round(kg * 10) / 10,
     m3: Math.round(m3 * 1000) / 1000,
+    maxKg: vehicle.maxKg,
+    maxM3: vehicle.maxM3,
     kgPct,
     m3Pct,
     fill,
-    underMin: fill < MIN_FILL,
+    minFill: rules.loadMinFillPct / 100,
+    underMin: fill < rules.loadMinFillPct / 100,
     over: kg > vehicle.maxKg + 0.01 || m3 > vehicle.maxM3 + 0.01,
-    loadSequence: [...sequenced].reverse().map((order) => order.id),
-    trip: tripCost(vehicle, Math.max(s.settings.businessRules?.shippingMinKm ?? 15, 8 + chosen.length * 4)),
+    enRoute: enRoute.map((order) => order.id),
+    outOfZone: ordersOutOfZone(s, vehicle, orderIds),
+    loadSequence: [...orderIds].reverse(),
+    trip: { km, cost: estimateRouteCost(km, vehicle.costPerKm) },
   };
 }
 

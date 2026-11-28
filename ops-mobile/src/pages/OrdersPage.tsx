@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { api } from '../api';
 import type { AuthUser } from '../auth';
 import { Icon } from '../components/Icon';
@@ -190,6 +191,12 @@ export function OrdersPage({
           En ruta <span>{counts.enRuta}</span>
         </button>
       </div>
+
+      {tab === 'preparados' && orders.length ? (
+        <Link className="btn primary full" to="/empaque">
+          <Icon name="box" /> Empacar pedidos preparados
+        </Link>
+      ) : null}
 
       <section className="panel">
         <ul className="data-list">

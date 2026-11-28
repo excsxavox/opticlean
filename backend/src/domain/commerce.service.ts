@@ -1,3 +1,5 @@
+import { assertRuc } from './ruc.js';
+import { discardPacking } from './packing.service.js';
 import type { AppState, Client, Order, OrderPick, PurchaseLine } from './types.js';
 import {
   addEvent,
@@ -96,6 +98,7 @@ export function cancelOrder(s: AppState, orderId: string, reason: string) {
   o.cancelReason = why;
   o.cancelledAt = new Date().toISOString();
   o.stagedPlate = undefined;
+  discardPacking(s, o);
   return o;
 }
 
@@ -138,7 +141,7 @@ export function unstageOrders(s: AppState, ids: string[]) {
 
 const CLIENT_FIELDS = ['name', 'contact', 'address', 'email', 'type'] as const;
 
-function cleanClient(input: Partial<Client>) {
+function cleanClient(input: Partial<Client>, previousTaxId?: string) {
   const out: Omit<Client, 'id'> = {
     name: '',
     contact: '',
@@ -153,7 +156,7 @@ function cleanClient(input: Partial<Client>) {
   }
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(out.email)) throw new Error('El correo no es válido.');
   const taxId = String(input.taxId ?? '').replace(/\D/g, '');
-  if (!/^\d{13}$/.test(taxId)) throw new Error('El RUC debe tener 13 dígitos.');
+  assertRuc(taxId, 'RUC', previousTaxId);
   out.taxId = taxId;
   const city = input.city?.trim() ?? '';
   if (city) out.city = city;
@@ -191,7 +194,7 @@ export function createClient(s: AppState, input: Partial<Client>) {
 export function updateClient(s: AppState, id: string, input: Partial<Client>) {
   const c = s.clients.find((x) => x.id === id);
   if (!c) throw new Error('Cliente no encontrado.');
-  const data = cleanClient({ ...c, ...input });
+  const data = cleanClient({ ...c, ...input }, c.taxId);
   assertUniqueClientTax(s, data.taxId!, id);
   if (s.clients.some((x) => x.id !== id && x.name.toLowerCase() === data.name.toLowerCase())) {
     throw new Error('Ya existe un cliente con ese nombre.');
@@ -291,6 +294,28 @@ export function createPurchase(
   });
   s.purchases.unshift(purchase);
   return purchase;
+}
+
+/** Edita una orden de compra que todavía no recibió nada ni respalda pedidos en espera. */
+export function editPurchase(s: AppState, id: string, body: Parameters<typeof createPurchase>[1]) {
+  const index = s.purchases.findIndex((x) => x.id === id);
+  if (index < 0) throw new Error('Orden de compra no encontrada.');
+  const old = s.purchases[index];
+  if (old.status !== 'Abierta' || (old.received ?? 0) > 0) {
+    throw new Error('Solo se edita una orden abierta sin mercadería recibida.');
+  }
+  if (old.orderIds?.length) throw new Error('La orden cubre pedidos en espera de stock; no se edita.');
+  s.purchases.splice(index, 1);
+  try {
+    const next = createPurchase(s, { ...body, date: body.date ?? old.date });
+    s.purchases.shift();
+    next.id = old.id;
+    s.purchases.splice(index, 0, next);
+    return next;
+  } catch (e) {
+    s.purchases.splice(index, 0, old);
+    throw e;
+  }
 }
 
 export function cancelPurchase(s: AppState, id: string) {

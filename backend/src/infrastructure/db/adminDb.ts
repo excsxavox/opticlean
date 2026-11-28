@@ -4,7 +4,9 @@ import { fileURLToPath } from 'node:url';
 import { DatabaseSync } from 'node:sqlite';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const DATA_DIR = path.resolve(__dirname, '../../../../data');
+// Usuarios y empresas no siguen a OPTICLEAN_DATA_DIR (esa es la carpeta del estado): moverlos
+// dejaría una instalación existente sin sus cuentas. Se cambian solo con su propia variable.
+const DATA_DIR = process.env.OPTICLEAN_AUTH_DATA_DIR?.trim() || path.resolve(__dirname, '../../../../data');
 const DB_PATH = path.join(DATA_DIR, 'admin.db');
 
 let db: DatabaseSync | null = null;
@@ -208,15 +210,6 @@ const SEED_MENU: Array<Omit<MenuItem, 'active' | 'badge'> & { badge?: string | n
     section: 'Bodega',
     sort_order: 20,
     badge: null,
-  },
-  {
-    id: 'mi-quotes',
-    module_id: 'mod-orders',
-    label: 'Cotizaciones',
-    path: '/cotizaciones',
-    icon: 'file',
-    section: 'Operación',
-    sort_order: 40,
   },
   {
     id: 'mi-orders',
@@ -434,6 +427,8 @@ function seed(database: DatabaseSync) {
   }
 
   database.prepare(`UPDATE menu_items SET badge = NULL WHERE badge = 'NUEVO'`).run();
+  // Cotizaciones ya no es una entrada del menú: se abre desde Pedidos.
+  database.prepare(`DELETE FROM menu_items WHERE id = 'mi-quotes'`).run();
   database
     .prepare(
       `INSERT OR IGNORE INTO company_modules (company_id, module_id, enabled)

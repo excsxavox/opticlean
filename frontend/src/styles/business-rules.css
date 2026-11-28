@@ -217,3 +217,21 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* Catálogo de cajas de empaque */
+.br-boxes {
+  display: grid;
+  gap: 12px;
+  margin-top: 16px;
+}
+.br-box-row {
+  display: grid;
+  grid-template-columns: minmax(160px, 2fr) repeat(4, minmax(90px, 1fr)) auto;
+  align-items: end;
+  gap: 8px;
+}
+@media (max-width: 800px) {
+  .br-box-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

@@ -30,7 +30,7 @@ export const routeMeta: Record<string, RouteMeta> = {
   '/familias': { title: 'Familias' },
   '/pedidos': { title: 'Pedidos' },
   '/pedidos/nuevo': { title: 'Nuevo pedido', parent: '/pedidos' },
-  '/cotizaciones': { title: 'Cotizaciones' },
+  '/cotizaciones': { title: 'Cotizaciones', parent: '/pedidos' },
   '/cotizaciones/nueva': { title: 'Nueva', parent: '/cotizaciones' },
   '/empaque': { title: 'Empaque' },
   '/plan': { title: 'Plan de mañana' },
@@ -57,7 +57,6 @@ export const fallbackMenu: MenuSection[] = [
       { id: 'f-home', label: 'Inicio', path: '/', icon: 'home', badge: null },
       { id: 'f-inv', label: 'Inventario', path: '/inventario', icon: 'box', badge: null },
       { id: 'f-rec', label: 'Recepción', path: '/recepcion', icon: 'receive', badge: null },
-      { id: 'f-quote', label: 'Cotizaciones', path: '/cotizaciones', icon: 'file', badge: null },
       { id: 'f-ped', label: 'Pedidos', path: '/pedidos', icon: 'orders', badge: null },
       { id: 'f-pack', label: 'Empaque', path: '/empaque', icon: 'cube', badge: null },
       { id: 'f-log', label: 'Logística', path: '/logistica', icon: 'truck', badge: null },
@@ -120,13 +119,18 @@ export function titleFor(path: string, menu: MenuSection[]): string {
  * La sección sale del menú (API), así respeta la configuración de cada empresa.
  */
 export function breadcrumbsFor(path: string, menu: MenuSection[]): Crumb[] {
-  const hit = metaFor(path);
+  // Sube por los padres: Nueva › Cotizaciones › Pedidos.
+  const parents: string[] = [];
+  let next = metaFor(path)?.meta.parent;
+  while (next && !parents.includes(next)) {
+    parents.unshift(next);
+    next = metaFor(next)?.meta.parent;
+  }
   const chain: Crumb[] = [];
-  const parentPath = hit?.meta.parent;
-  const sectionPath = parentPath ?? path;
+  const sectionPath = parents[0] ?? path;
   const section = menu.find((s) => s.items.some((i) => i.path === sectionPath));
   if (section) chain.push({ label: section.section });
-  if (parentPath) chain.push({ label: titleFor(parentPath, menu), to: parentPath });
+  for (const parent of parents) chain.push({ label: titleFor(parent, menu), to: parent });
   chain.push({ label: titleFor(path, menu) });
   return chain;
 }

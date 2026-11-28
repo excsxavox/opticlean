@@ -1,4 +1,6 @@
+import { isValidEcuadorRuc, strictRucEnabled } from './ruc.js';
 import type {
+  Order,
   AdjustmentKind,
   AppState,
   CreditNote,
@@ -145,6 +147,9 @@ export function issueInvoice(s: AppState, orderId: string) {
   if (!buyer?.taxId || !/^\d{13}$/.test(buyer.taxId)) {
     throw new Error('El cliente necesita un RUC de 13 dígitos para facturar.');
   }
+  if (strictRucEnabled() && !isValidEcuadorRuc(buyer.taxId)) {
+    throw new Error('El RUC del cliente no es válido: corrígelo antes de facturar.');
+  }
   for (const line of order.lines) assertSanitary(s, line.productId);
   const pool = (order.picks ?? []).map((pick) => ({ ...pick }));
   if (!pool.length) missingPick(order.id);
@@ -282,6 +287,17 @@ export function issueCreditNote(
   return note;
 }
 
+/** Resumen de los bultos de un pedido con el empaque cerrado. */
+function packagesOf(s: AppState, order: Order) {
+  const parcels = order.packing ? (s.parcels ?? []).filter((parcel) => parcel.orderId === order.id) : [];
+  if (!parcels.length) return undefined;
+  return {
+    count: parcels.length,
+    weightKg: Math.round(parcels.reduce((sum, parcel) => sum + parcel.weightKg, 0) * 100) / 100,
+    parcelIds: parcels.map((parcel) => parcel.id),
+  };
+}
+
 export function issueGuide(
   s: AppState,
   body: { orderId?: string; transferId?: string },
@@ -294,7 +310,12 @@ export function issueGuide(
     const order = s.orders.find((item) => item.id === body.orderId);
     if (!order) throw new Error('Pedido no encontrado.');
     const existing = s.guides!.find((item) => item.orderId === order.id && item.kind === 'Venta' && item.status === 'Emitida');
-    if (existing) return existing;
+    if (existing) {
+      // Una guía emitida antes de empacar o de asignar camión se completa al despachar.
+      existing.packages = packagesOf(s, order) ?? existing.packages;
+      existing.plate ??= order.vehicle;
+      return existing;
+    }
     if (!['Preparado', 'En ruta', 'Entregado'].includes(order.status)) {
       throw new Error('La guía se emite cuando el pedido ya está preparado.');
     }
@@ -311,6 +332,7 @@ export function issueGuide(
       origin: s.settings.warehouse,
       destination: client(s, order.clientId)?.address || client(s, order.clientId)?.name || order.clientId,
       plate: order.vehicle,
+      packages: packagesOf(s, order),
       lines: order.picks.map((line) => ({
         productId: line.productId,
         qty: line.qty,

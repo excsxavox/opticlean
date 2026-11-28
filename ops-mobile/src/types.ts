@@ -58,11 +58,25 @@ export type Order = {
   priority: string;
   vehicle?: string;
   stagedPlate?: string;
+  stopOrder?: number;
+  loadNote?: string;
+  packing?: { closedAt: string; closedBy?: string };
+  packCounts?: Record<string, number>;
+  picks?: Array<{ productId: string; qty: number; batch?: string; loc?: string }>;
   deliveredTo?: string;
   deliveredAt?: string;
   assignedToUserId?: string;
   assignedToName?: string;
   assignedAt?: string;
+};
+
+export type Parcel = {
+  id: string;
+  orderId: string;
+  weightKg: number;
+  volumeM3: number;
+  contents?: Array<{ productId: string; batch: string; qty: number }>;
+  weightNote?: string;
 };
 
 export type Receipt = {
@@ -106,6 +120,7 @@ export type AppState = {
   receipts: Receipt[];
   events: TraceEvent[];
   families?: WarehouseFamily[];
+  parcels?: Parcel[];
   vehicles?: Array<{
     id: string;
     plate: string;
@@ -122,6 +137,7 @@ export type AppState = {
     warehouse: string;
     operator: string;
     activeWarehouseId?: string;
+    packingBoxes?: Array<{ code: string; label: string; dims: { l: number; w: number; h: number }; tareKg: number }>;
   };
 };
 

@@ -13,6 +13,9 @@ export const DEFAULT_BUSINESS_RULES: BusinessRules = {
   creditTightMaxPct: 90,
   defaultCreditLimit: 3000,
   separateExpiryLots: true,
+  packTolerancePct: 5,
+  loadMinFillPct: 80,
+  requirePackingBeforeDispatch: true,
 };
 
 export type ShippingParams = Pick<

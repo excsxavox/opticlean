@@ -60,16 +60,39 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ reason }),
     }),
-  stageOrders: (orderIds: string[], plate: string) =>
-    request<{ state: AppState }>('/api/logistics/stage', {
+  scanUnit: (orderId: string, code: string) =>
+    request<{ state: AppState; scanned: string }>(`/api/packing/orders/${encodeURIComponent(orderId)}/scan`, {
       method: 'POST',
-      body: JSON.stringify({ orderIds, plate }),
+      body: JSON.stringify({ code }),
     }),
-  unstageOrders: (orderIds: string[]) =>
-    request<{ state: AppState }>('/api/logistics/unstage', {
+  countUnits: (orderId: string, body: { productId: string; batch: string; qty: number }) =>
+    request<{ state: AppState }>(`/api/packing/orders/${encodeURIComponent(orderId)}/count`, {
       method: 'POST',
-      body: JSON.stringify({ orderIds }),
+      body: JSON.stringify(body),
     }),
+  addParcel: (body: { orderId: string; boxCode: string }) =>
+    request<{ state: AppState }>('/api/packing/parcels', { method: 'POST', body: JSON.stringify(body) }),
+  editParcel: (id: string, body: Record<string, unknown>) =>
+    request<{ state: AppState }>(`/api/packing/parcels/${encodeURIComponent(id)}`, {
+      method: 'PATCH',
+      body: JSON.stringify(body),
+    }),
+  removeParcel: (id: string) =>
+    request<{ state: AppState }>(`/api/packing/parcels/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+  closePacking: (orderId: string) =>
+    request<{ state: AppState }>(`/api/packing/orders/${encodeURIComponent(orderId)}/close`, {
+      method: 'POST',
+      body: JSON.stringify({}),
+    }),
+  reopenPacking: (orderId: string) =>
+    request<{ state: AppState }>(`/api/packing/orders/${encodeURIComponent(orderId)}/reopen`, {
+      method: 'POST',
+      body: JSON.stringify({}),
+    }),
+  confirmLoad: (body: { plate: string; orderIds: string[]; reason?: string }) =>
+    request<{ state: AppState }>('/api/loading/confirm', { method: 'POST', body: JSON.stringify(body) }),
+  releaseLoad: (plate: string) =>
+    request<{ state: AppState }>('/api/loading/release', { method: 'POST', body: JSON.stringify({ plate }) }),
   move: (body: { productId: string; qty: number; from: string; to: string; batch?: string }) =>
     request<{ state: AppState }>('/api/moves', { method: 'POST', body: JSON.stringify(body) }),
   delivery: (body: { orderId: string; person: string; notes?: string }) =>

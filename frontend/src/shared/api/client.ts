@@ -102,6 +102,32 @@ export async function downloadReport(kind: 'traceability' | 'diagnostics', forma
   URL.revokeObjectURL(url);
 }
 
+async function downloadFile(url: string, fallbackName: string) {
+  const send = () => {
+    const token = getToken();
+    return fetch(url, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+  };
+  let res = await send();
+  if (res.status === 401 && (await tryRefreshSession())) res = await send();
+  if (!res.ok) {
+    const data = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(data.error ?? 'No se pudo descargar el documento.');
+  }
+  const match = /filename="([^"]+)"/.exec(res.headers.get('Content-Disposition') ?? '');
+  const href = URL.createObjectURL(await res.blob());
+  const link = document.createElement('a');
+  link.href = href;
+  link.download = match?.[1] ?? fallbackName;
+  link.click();
+  URL.revokeObjectURL(href);
+}
+
+export const downloadPackingDocument = (orderId: string, kind: 'labels' | 'list') =>
+  downloadFile(
+    `/api/packing/orders/${encodeURIComponent(orderId)}/${kind}.pdf`,
+    `${kind === 'labels' ? 'etiquetas' : 'lista-empaque'}-${orderId}.pdf`,
+  );
+
 export const api = {
   login: (email: string, password: string) =>
     request<SessionResponse>('/api/auth/login', {
@@ -298,6 +324,20 @@ export const api = {
     request<StateResponse>('/api/clients', { method: 'POST', body: JSON.stringify(body) }),
   updateClient: (id: string, body: Record<string, unknown>) =>
     request<StateResponse>(`/api/clients/${encodeURIComponent(id)}`, {
+      method: 'PATCH',
+      body: JSON.stringify(body),
+    }),
+  deleteClient: (id: string) =>
+    request<StateResponse>(`/api/clients/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+  deleteProduct: (id: string) =>
+    request<StateResponse>(`/api/products/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+  editOrder: (id: string, body: Record<string, unknown>) =>
+    request<StateResponse>(`/api/orders/${encodeURIComponent(id)}`, {
+      method: 'PATCH',
+      body: JSON.stringify(body),
+    }),
+  editPurchase: (id: string, body: Record<string, unknown>) =>
+    request<StateResponse>(`/api/purchases/${encodeURIComponent(id)}`, {
       method: 'PATCH',
       body: JSON.stringify(body),
     }),
@@ -785,18 +825,50 @@ export const api = {
     request<StateResponse>('/api/quotes', { method: 'POST', body: JSON.stringify(body) }),
   winQuote: (id: string) => request<StateResponse>(`/api/quotes/${encodeURIComponent(id)}/win`, { method: 'POST' }),
   loseQuote: (id: string) => request<StateResponse>(`/api/quotes/${encodeURIComponent(id)}/lose`, { method: 'POST' }),
-  packOrder: (body: { orderId: string; weightKg: number; volumeM3: number }) =>
-    request<StateResponse>('/api/packing', { method: 'POST', body: JSON.stringify(body) }),
+  addParcel: (body: { orderId: string; boxCode?: string; dims?: { l: number; w: number; h: number } }) =>
+    request<StateResponse>('/api/packing/parcels', { method: 'POST', body: JSON.stringify(body) }),
+  editParcel: (id: string, body: Record<string, unknown>) =>
+    request<StateResponse>(`/api/packing/parcels/${encodeURIComponent(id)}`, {
+      method: 'PATCH',
+      body: JSON.stringify(body),
+    }),
+  removeParcel: (id: string) =>
+    request<StateResponse>(`/api/packing/parcels/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+  countUnits: (orderId: string, body: { productId: string; batch: string; qty: number }) =>
+    request<StateResponse>(`/api/packing/orders/${encodeURIComponent(orderId)}/count`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  scanUnit: (orderId: string, code: string) =>
+    request<StateResponse & { scanned: string }>(
+      `/api/packing/orders/${encodeURIComponent(orderId)}/scan`,
+      { method: 'POST', body: JSON.stringify({ code }) },
+    ),
+  closePacking: (orderId: string) =>
+    request<StateResponse>(`/api/packing/orders/${encodeURIComponent(orderId)}/close`, { method: 'POST' }),
+  reopenPacking: (orderId: string) =>
+    request<StateResponse>(`/api/packing/orders/${encodeURIComponent(orderId)}/reopen`, { method: 'POST' }),
+  confirmLoad: (body: { plate: string; orderIds: string[]; reason?: string }) =>
+    request<StateResponse>('/api/loading/confirm', { method: 'POST', body: JSON.stringify(body) }),
+  releaseLoad: (plate: string) =>
+    request<StateResponse>('/api/loading/release', { method: 'POST', body: JSON.stringify({ plate }) }),
   previewLoad: (plate: string, orderIds: string[]) =>
     request<{
       plate: string;
       kg: number;
       m3: number;
+      maxKg: number;
+      maxM3: number;
+      kgPct: number;
+      m3Pct: number;
       fill: number;
+      minFill: number;
       underMin: boolean;
       over: boolean;
+      enRoute: string[];
+      outOfZone: string[];
       loadSequence: string[];
-      trip: { km: number; allIn: number; fuel: number; fuelUnits: number; fuelType: string | null };
+      trip: { km: number; cost: number };
     }>('/api/loading/preview', { method: 'POST', body: JSON.stringify({ plate, orderIds }) }),
   addOffering: (body: Record<string, unknown>) =>
     request<StateResponse>('/api/offerings', { method: 'POST', body: JSON.stringify(body) }),

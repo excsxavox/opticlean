@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAppState } from '../../shared/hooks/AppStateProvider';
 import { useAuth } from '../../shared/hooks/AuthProvider';
+import { canAccessPath } from '../../shared/auth/permissions';
 import { api } from '../../shared/api/client';
 import {
   client,
@@ -123,6 +124,11 @@ export function OrdersPage() {
     setPage(1);
   }, [tab]);
 
+  const today = new Date().toISOString().slice(0, 10);
+  // Abiertas y todavía vigentes.
+  const openQuotes = (state?.quotes ?? []).filter(
+    (quote) => quote.status === 'Abierta' && quote.validUntil >= today,
+  ).length;
   if (!state) return null;
 
   const list = liveOrders.filter((o) => {
@@ -195,9 +201,21 @@ export function OrdersPage() {
         title="Del pedido a la entrega"
         desc="Disponibilidad, preparación y seguimiento en un mismo flujo."
         actions={
-          <Btn variant="primary" icon="plus" onClick={() => navigate('/pedidos/nuevo')}>
-            Nuevo pedido
-          </Btn>
+          <>
+            {canAccessPath(user, '/cotizaciones') ? (
+              <Btn icon="file" onClick={() => navigate('/cotizaciones')}>
+                Cotizaciones
+                {openQuotes > 0 ? (
+                  <span className="orders-quotes-count" title="Cotizaciones abiertas">
+                    {openQuotes}
+                  </span>
+                ) : null}
+              </Btn>
+            ) : null}
+            <Btn variant="primary" icon="plus" onClick={() => navigate('/pedidos/nuevo')}>
+              Nuevo pedido
+            </Btn>
+          </>
         }
       />
 

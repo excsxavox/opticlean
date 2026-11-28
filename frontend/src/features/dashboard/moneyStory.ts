@@ -22,7 +22,7 @@ function supplierName(state: AppState, supplierId?: string) {
   return state.suppliers?.find((item) => item.id === supplierId)?.name ?? 'Proveedor';
 }
 
-/** Kilómetros de una ruta con la misma regla que el costo del viaje al cargar el camión. */
+/** Kilómetros estimados de una ruta ya despachada. Empaque estima la carga con la plantilla de envío. */
 function routeKm(stops: number) {
   return Math.max(15, 8 + stops * 4);
 }

@@ -66,7 +66,9 @@ declare global {
 }
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const DATA_DIR = path.resolve(__dirname, '../../../../data');
+// Usuarios y empresas no siguen a OPTICLEAN_DATA_DIR (esa es la carpeta del estado): moverlos
+// dejaría una instalación existente sin sus cuentas. Se cambian solo con su propia variable.
+const DATA_DIR = process.env.OPTICLEAN_AUTH_DATA_DIR?.trim() || path.resolve(__dirname, '../../../../data');
 const USERS_PATH = path.join(DATA_DIR, 'users.json');
 
 /** Ruta del archivo de usuarios (para respaldos). */

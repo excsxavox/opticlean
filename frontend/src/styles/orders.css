@@ -175,3 +175,18 @@
 .ord-status-filter {
   margin-bottom: 16px;
 }
+
+/* Contador de cotizaciones abiertas en la cabecera de Pedidos */
+.orders-quotes-count {
+  display: inline-grid;
+  place-items: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: var(--radius-full);
+  background: var(--color-primary-soft);
+  color: var(--color-primary);
+  font-size: var(--text-2xs);
+  font-weight: var(--weight-bold);
+  line-height: 1;
+}

@@ -168,11 +168,13 @@
 .nav-item:hover .icon {
   color: var(--slate-100);
 }
-.nav-item[aria-current='page'] {
+.nav-item[aria-current='page'],
+.nav-item.is-nested {
   color: var(--slate-0);
   background: transparent;
 }
-.nav-item[aria-current='page'] .icon {
+.nav-item[aria-current='page'] .icon,
+.nav-item.is-nested .icon {
   color: var(--slate-0);
 }
 .nav-active-bg {
@@ -203,7 +205,8 @@
   color: var(--cyan-300);
   background: color-mix(in srgb, var(--cyan-500) 18%, transparent);
 }
-.nav-item[aria-current='page'] .nav-pill {
+.nav-item[aria-current='page'] .nav-pill,
+.nav-item.is-nested .nav-pill {
   color: var(--slate-0);
   background: color-mix(in srgb, var(--slate-0) 22%, transparent);
 }

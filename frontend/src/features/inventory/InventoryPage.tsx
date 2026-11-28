@@ -249,6 +249,27 @@ export function InventoryWorkspace({
     { value: 'reserved', label: 'Con reservas', count: reservedCount },
   ];
 
+  const alertTotal = expiry.length + linkedBlocked.length;
+  const expiryTitle = [
+    expiredCount ? `${expiredCount} ${expiredCount === 1 ? 'lote vencido' : 'lotes vencidos'}` : '',
+    soonCount ? `${soonCount} por vencer en ≤ 90 días` : '',
+  ]
+    .filter(Boolean)
+    .join(' · ');
+  const expiryHint = expiry[0]
+    ? `${expiry[0].name} · ${expiry[0].loc} · ${
+        expiry[0].days < 0 ? 'vencido' : `vence en ${expiry[0].days} días`
+      }`
+    : '';
+  const showInCatalog = (patch: Record<string, string>) => {
+    updateParams(patch);
+    // Espera a que el menú se cierre y devuelva el foco antes de desplazar.
+    window.setTimeout(
+      () => catalogRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }),
+      50,
+    );
+  };
+
   const toggleAllVisible = () => {
     const next = { ...checked };
     const turnOn = !allVisibleChecked;
@@ -266,6 +287,55 @@ export function InventoryWorkspace({
         desc="Stock físico, reservas y disponibilidad de productos e insumos por bodega."
         actions={
           <div className="inv-top-actions">
+            <label className="inv-wh-select">
+              <Icon name="building" />
+              <Select
+                value={activeWarehouseId(state)}
+                disabled={whBusy}
+                aria-label="Bodega"
+                onChange={(e) => void onWarehouseChange(e.target.value)}
+              >
+                {state.warehouses.map((w) => (
+                  <option key={w.id} value={w.id}>
+                    {w.name}
+                    {w.code ? ` • ${w.code}` : ''}
+                  </option>
+                ))}
+              </Select>
+            </label>
+            {alertTotal > 0 ? (
+              <Menu
+                label="Alertas de inventario"
+                className="inv-alerts-menu"
+                trigger={
+                  <Button
+                    icon="bell"
+                    className="inv-alerts-btn"
+                    aria-label={`Alertas de inventario: ${alertTotal}`}
+                  >
+                    Alertas
+                    <span className={`inv-alerts-badge${expiredCount ? ' is-danger' : ''}`}>
+                      {alertTotal > 99 ? '99+' : alertTotal}
+                    </span>
+                  </Button>
+                }
+                items={[
+                  expiry.length > 0 && {
+                    label: expiryTitle,
+                    icon: 'calendar',
+                    tone: expiredCount ? ('danger' as const) : undefined,
+                    hint: expiryHint,
+                    onSelect: () => showInCatalog({ estado: 'expiring', orden: 'expiry', tipo: '' }),
+                  },
+                  linkedBlocked.length > 0 && {
+                    label: `${linkedBlocked.length} ${linkedBlocked.length === 1 ? 'producto vinculado' : 'productos vinculados'} a insumos bajo mínimo`,
+                    icon: 'alert',
+                    hint: 'Ver afectados en el catálogo',
+                    onSelect: () => showInCatalog({ estado: 'attention', tipo: '' }),
+                  },
+                ]}
+              />
+            ) : null}
             <Btn icon="download" disabled={!rows.length} onClick={exportRows}>
               Exportar vista
             </Btn>
@@ -294,24 +364,7 @@ export function InventoryWorkspace({
             />
           </div>
         }
-      >
-        <label className="inv-wh-select">
-          <Icon name="building" />
-          <Select
-            value={activeWarehouseId(state)}
-            disabled={whBusy}
-            aria-label="Bodega"
-            onChange={(e) => void onWarehouseChange(e.target.value)}
-          >
-            {state.warehouses.map((w) => (
-              <option key={w.id} value={w.id}>
-                {w.name}
-                {w.code ? ` • ${w.code}` : ''}
-              </option>
-            ))}
-          </Select>
-        </label>
-      </PageHead>
+      />
 
       <KpiGrid label="Resumen de la bodega activa">
         <Kpi
@@ -364,49 +417,6 @@ export function InventoryWorkspace({
           }
         />
       </KpiGrid>
-
-      {expiry.length > 0 ? (
-        <div className="inv-expiry-banner" role="status">
-          <Icon name="alert" />
-          <div className="inv-expiry-banner-copy">
-            <strong>
-              {expiredCount > 0
-                ? `${expiredCount} lote${expiredCount === 1 ? '' : 's'} vencido${expiredCount === 1 ? '' : 's'}`
-                : 'Productos por caducar'}
-              {soonCount > 0 ? ` · ${soonCount} por vencer en ≤ 90 días` : ''}
-            </strong>
-            <span>
-              {expiry[0]
-                ? `${expiry[0].name} · ${expiry[0].loc} · ${
-                    expiry[0].days < 0 ? 'vencido' : `vence en ${expiry[0].days} días`
-                  }`
-                : 'Revisa lotes antes de despachar.'}{' '}
-              Al preparar se usa FEFO: primero el lote que vence antes.
-            </span>
-          </div>
-          <Button variant="link" onClick={() => {
-              updateParams({ estado: 'expiring', orden: 'expiry', tipo: '' });
-              catalogRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-            }}>
-            Ver caducidades <Icon name="arrow" />
-          </Button>
-        </div>
-      ) : null}
-
-      {linkedBlocked.length > 0 ? (
-        <div className="inv-linked-banner" role="status">
-          <Icon name="alert" />
-          <span>
-            <strong>{linkedBlocked.length}</strong> productos vinculados a insumos bajo mínimo
-          </span>
-          <Button variant="link" onClick={() => {
-              updateParams({ estado: 'attention', tipo: '' });
-              catalogRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-            }}>
-            Ver afectados <Icon name="arrow" />
-          </Button>
-        </div>
-      ) : null}
 
       {view === 'lines' ? (
         <InventoryOverview

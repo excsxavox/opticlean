@@ -305,6 +305,10 @@ export function CommercialPage() {
                   {(state.guides ?? []).map((guide) => (
                     <li key={guide.id}>
                       {guide.number} · {guide.kind} · {guide.origin} → {guide.destination}
+                      {guide.plate ? ` · ${guide.plate}` : ''}
+                      {guide.packages
+                        ? ` · ${guide.packages.count} bulto(s), ${guide.packages.weightKg} kg (${guide.packages.parcelIds.join(', ')})`
+                        : ''}
                     </li>
                   ))}
                 </ul>

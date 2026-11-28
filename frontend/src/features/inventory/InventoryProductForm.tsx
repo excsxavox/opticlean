@@ -113,6 +113,7 @@ export function InventoryProductForm({
   const [labelText, setLabelText] = useState('');
   const [attributes, setAttributes] = useState(product?.attributes ?? []);
   const [presentations, setPresentations] = useState((product?.presentations ?? []).join(', '));
+  const [barcode, setBarcode] = useState(product?.barcode ?? '');
   const [packUnits, setPackUnits] = useState({
     paquete: product?.packs?.find((pack) => pack.code === 'paquete')?.units ?? 6,
     caja: product?.packs?.find((pack) => pack.code === 'caja')?.units ?? 12,
@@ -198,6 +199,7 @@ export function InventoryProductForm({
     minShelfLifeDays,
     sanitaryRegistration,
     sanitaryExpires,
+    barcode,
     ivaRate,
     inspectOnReceipt,
     perishable,
@@ -406,6 +408,7 @@ export function InventoryProductForm({
         min: Number(values.min),
         weight: Number(values.weight),
         volume: Number(values.volume),
+        barcode: barcode.trim(),
         kind,
         hazardClass,
         minShelfLifeDays: Number(minShelfLifeDays) || 0,
@@ -758,6 +761,16 @@ export function InventoryProductForm({
                         }}>
                         Leer etiqueta
                       </Button>
+                    </div>
+                    <div className="field">
+                      <label htmlFor={`${uniqueId}-barcode`}>Código de barras</label>
+                      <Input
+                        id={`${uniqueId}-barcode`}
+                        value={barcode}
+                        autoComplete="off"
+                        onChange={(event) => setBarcode(event.target.value)}
+                        placeholder="EAN, UPC o código interno"
+                      />
                     </div>
                     <div className="field">
                       <label htmlFor={`${uniqueId}-presentations`}>Presentaciones</label>

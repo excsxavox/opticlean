@@ -28,6 +28,7 @@ export default defineConfig({
         ...process.env,
         PORT: '3011',
         OPTICLEAN_DATA_DIR: dataDir,
+        OPTICLEAN_AUTH_DATA_DIR: dataDir,
       },
     },
     {
